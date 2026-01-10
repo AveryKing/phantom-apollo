@@ -1,0 +1,27 @@
+
+# Dependencies
+node_modules/
+dist/
+
+# Environment
+.env
+.env.*
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS
+.DS_Store
+
+# HIDE FROM GITHUB (AI & Docs)
+.agent/
+.antigravity/
+.gemini/
+docs/
+*.md
+!README.md
+
+# Scripts (Optional: Hide dev scripts if you want)
+# scripts/

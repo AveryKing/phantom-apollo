@@ -1,0 +1,44 @@
+{
+  "name": "phantom-apollo-biz-dev",
+  "version": "1.0.0",
+  "description": "Multi-agent business development system",
+  "main": "dist/graph.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/graph.js",
+    "test": "jest"
+  },
+  "dependencies": {
+    "@google-cloud/aiplatform": "^6.0.0",
+    "@google-cloud/vertexai": "^1.10.0",
+    "@google/generative-ai": "^0.24.1",
+    "@langchain/core": "^1.1.12",
+    "@langchain/google-genai": "^2.1.7",
+    "@langchain/google-vertexai": "^2.1.7",
+    "@langchain/langgraph": "^1.0.15",
+    "@supabase/supabase-js": "^2.90.1",
+    "@trigger.dev/sdk": "^4.3.2",
+    "body-parser": "^2.2.2",
+    "discord-interactions": "^4.4.0",
+    "dotenv": "^16.6.1",
+    "express": "^5.2.1",
+    "nodemon": "^3.1.11",
+    "puppeteer": "^24.34.0",
+    "resend": "^6.7.0",
+    "ts-node": "^10.9.2",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@trigger.dev/build": "^4.3.2",
+    "@types/express": "^5.0.6",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^25.0.6",
+    "jest": "^30.2.0",
+    "ts-jest": "^29.4.6",
+    "typescript": "^5.9.3"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs"
+}
