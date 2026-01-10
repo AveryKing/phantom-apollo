@@ -1,0 +1,9 @@
+
+node_modules
+dist
+.env
+.git
+.DS_Store
+scripts
+docs
+coverage
