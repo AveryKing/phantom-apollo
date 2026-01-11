@@ -29,39 +29,56 @@ export async function searchForNichesNode(state: ResearchState): Promise<Partial
         const result = await model.generateContent(prompt);
         const rawText = result.response.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
-        // Robust Extraction using [QUERY] tags
+        // Robust Extraction using [QUERY] tags or line-by-line fallback
         const queryMatches = rawText.match(/\[QUERY\](.*?)\[\/QUERY\]/gs);
         let queries: string[] = [];
 
         if (queryMatches) {
             queries = queryMatches.map(m => m.replace(/\[\/?QUERY\]/g, '').trim());
-        } else {
-            // Fallback: cleaning up lines if tags are missing
-            queries = rawText
-                .split('\n')
-                .map(q => q.replace(/^\d+\.\s*/, '').replace(/^"|"$/g, '').trim())
-                .filter(q => q.length > 3 && q.length < 150 && !q.toLowerCase().includes("here are"))
-                .slice(0, 3);
         }
 
-        console.log(`📡 Extracted ${queries.length} clean queries:`, queries);
+        // Fallback Strategy: If extraction failed or returned too few, try line-based extraction
+        if (queries.length < 2) {
+            const lines = rawText
+                .split('\n')
+                .map(q => q.replace(/^\d+\.\s*/, '').replace(/^"|"$/g, '').trim())
+                .filter(q => q.length > 5 && q.length < 150 && !q.toLowerCase().includes("here are"));
+            queries = [...new Set([...queries, ...lines])].slice(0, 3);
+        }
+
+        // Secondary Fallback: If still empty, use Seed Queries based on niche
+        if (queries.length === 0) {
+            console.warn(`⚠️ LLM failed to generate queries for "${state.niche}". Using seed fallbacks.`);
+            queries = [
+                `"${state.niche}" problems frustrations forum`,
+                `"${state.niche}" software complaints reddit`,
+                `"${state.niche}" business operations challenges`
+            ];
+        }
+
+        console.log(`📡 Final queries for "${state.niche}":`, queries);
 
         // 2. Execute Searches
         let allResults: string[] = [];
         for (const query of queries) {
             try {
                 const results = await googleSearch(query, 5);
-                const formattedResults = results.map(r => `Title: ${r.title}\nLink: ${r.link}\nSnippet: ${r.snippet}`).join('\n\n');
-                allResults.push(`### RESULTS FOR: ${query}\n${formattedResults}`);
+                if (results.length > 0) {
+                    const formattedResults = results.map(r => `Title: ${r.title}\nLink: ${r.link}\nSnippet: ${r.snippet}`).join('\n\n');
+                    allResults.push(`### RESULTS FOR: ${query}\n${formattedResults}`);
+                }
             } catch (err) {
                 console.error(`❌ Search failed for query "${query}":`, err);
             }
         }
 
         if (allResults.length === 0) {
+            console.warn(`🛑 No web results found for "${state.niche}". Using internal knowledge fallback.`);
+            // Return a status that triggers a rejected result instead of a crash
             return {
-                status: 'failed',
-                error: "No search results found for any generated queries."
+                queries: queries,
+                searchResults: ["No external results found. Use general industry knowledge for analysis."],
+                status: 'analyzing'
             };
         }
 
