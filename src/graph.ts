@@ -96,3 +96,4 @@ export async function runBeastMode(niche: string, discordToken?: string) {
 
     return finalState;
 }
+ 
