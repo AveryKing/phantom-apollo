@@ -36,3 +36,6 @@ list_models.js
 test_search.js
 knowledge.json
 decisions/
+
+# LangGraph API
+.langgraph_api

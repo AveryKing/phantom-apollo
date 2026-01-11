@@ -7,7 +7,10 @@
     "build": "tsc",
     "start": "node dist/graph.js",
     "test": "jest",
-    "local:hunt": "ts-node scripts/test-beast-mode.ts"
+    "local:hunt": "ts-node scripts/test-beast-mode.ts",
+    "dev:server": "nodemon --exec ts-node src/server.ts",
+    "dev": "npm run dev:server",
+    "langgraph:dev": "npx @langchain/langgraph-cli dev --port 2024"
   },
   "dependencies": {
     "@google-cloud/aiplatform": "^6.0.0",
@@ -19,12 +22,12 @@
     "@langchain/google-vertexai": "^2.1.7",
     "@langchain/langgraph": "^1.0.15",
     "@supabase/supabase-js": "^2.90.1",
-    "@trigger.dev/sdk": "^4.3.2",
     "body-parser": "^2.2.2",
     "discord-interactions": "^4.4.0",
     "dotenv": "^16.6.1",
     "express": "^5.2.1",
     "langfuse": "^3.38.6",
+    "langfuse-langchain": "^3.38.6",
     "nodemon": "^3.1.11",
     "puppeteer": "^24.34.0",
     "resend": "^6.7.0",
@@ -32,7 +35,6 @@
     "zod": "^3.22.4"
   },
   "devDependencies": {
-    "@trigger.dev/build": "^4.3.2",
     "@types/express": "^5.0.6",
     "@types/jest": "^30.0.0",
     "@types/node": "^25.0.6",
