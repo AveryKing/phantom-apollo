@@ -44,7 +44,7 @@ export interface ResearchState {
     researchNotes: string;
 
     /** Current agent status */
-    status: 'researching' | 'analyzing' | 'scoring' | 'validated' | 'rejected' | 'failed';
+    status: 'researching' | 'analyzing' | 'scoring' | 'validated' | 'rejected' | 'failed' | 'active' | 'prospecting' | 'outreach';
 
     /** Any error messages encountered */
     error?: string;

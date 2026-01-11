@@ -6,12 +6,11 @@ WORKDIR /app
 # Install pnpm (used in agent-chat-ui)
 RUN npm install -g pnpm
 
-# Copy only the UI package files
-COPY agent-chat-ui/package*.json ./agent-chat-ui/
-COPY agent-chat-ui/pnpm-lock.yaml* ./agent-chat-ui/
+# Copy package files first for caching
+COPY agent-chat-ui/package*.json ./
+COPY agent-chat-ui/pnpm-lock.yaml* ./
 
 # Install dependencies
-WORKDIR /app/agent-chat-ui
 RUN pnpm install
 
 # Build arguments for public variables
@@ -22,20 +21,22 @@ ARG NEXT_PUBLIC_ASSISTANT_ID=agent
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_ASSISTANT_ID=$NEXT_PUBLIC_ASSISTANT_ID
 
-# Copy everything else and build
+# Copy the rest of the UI files
 COPY agent-chat-ui/ .
 
+# Build the application
 RUN pnpm run build
 
 # Production image
 FROM node:20-slim AS runner
 WORKDIR /app
 
-COPY --from=builder /app/agent-chat-ui/.next ./.next
-COPY --from=builder /app/agent-chat-ui/public ./public
-COPY --from=builder /app/agent-chat-ui/package.json ./package.json
-COPY --from=builder /app/agent-chat-ui/next.config.mjs ./next.config.mjs
-COPY --from=builder /app/agent-chat-ui/node_modules ./node_modules
+# Copy built assets and necessary files from builder
+COPY --from=builder /app/.next ./.next
+COPY --from=builder /app/public ./public
+COPY --from=builder /app/package.json ./package.json
+COPY --from=builder /app/next.config.mjs ./next.config.mjs
+COPY --from=builder /app/node_modules ./node_modules
 
 EXPOSE 3000
 CMD ["npm", "start"]

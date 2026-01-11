@@ -75,12 +75,11 @@ export async function feedbackLoopNode(state: AgentState): Promise<Partial<Agent
         }).eq('id', nicheData.id);
 
         return {
-            ...state,
-            status: updatedStatus as any
+            status: updatedStatus as AgentState['status']
         };
 
     } catch (error) {
         console.error("❌ Feedback loop failed:", error);
-        return state;
+        return {};
     }
 }

@@ -1,5 +1,5 @@
 import { StateGraph } from "@langchain/langgraph";
-import { ResearchState, researchStateChannels } from "../types/research-state";
+import { AgentState, researchStateChannels } from "../types";
 import { researchPlanNode, researchExecuteNode, analyzeAndScoreNicheNode } from "./research-nodes";
 
 /**
@@ -9,12 +9,12 @@ import { researchPlanNode, researchExecuteNode, analyzeAndScoreNicheNode } from 
  * 3. Analysis & Scoring
  * 4. End
  */
-const workflow = new StateGraph<ResearchState>({
+const workflow = new StateGraph<AgentState>({
     channels: researchStateChannels as any
 })
-    .addNode("plan", researchPlanNode as any)
-    .addNode("execute", researchExecuteNode as any)
-    .addNode("analyze", analyzeAndScoreNicheNode as any)
+    .addNode("plan", researchPlanNode)
+    .addNode("execute", researchExecuteNode)
+    .addNode("analyze", analyzeAndScoreNicheNode)
     .addEdge("__start__", "plan")
     .addEdge("plan", "execute")
     .addEdge("execute", "analyze")
@@ -28,18 +28,20 @@ export const researchGraph = workflow.compile();
  */
 export async function runResearch(niche: string) {
     try {
-        const initialState: ResearchState = {
+        const initialState: AgentState = {
             niche,
             queries: [],
             searchResults: [],
             painPoints: [],
             scores: { marketSize: 0, competition: 0, willingnessToPay: 0, overall: 0 },
             researchNotes: "",
-            status: 'researching'
+            status: 'researching',
+            leads: [],
+            messages: []
         };
 
         console.log(`🚀 Launching Research Agent for: ${niche}`);
-        const finalState = await researchGraph.invoke(initialState as any);
+        const finalState = await researchGraph.invoke(initialState);
         return finalState;
     } catch (error) {
         console.error('❌ [Research] Error running research:', error);
