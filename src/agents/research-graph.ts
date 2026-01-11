@@ -1,20 +1,23 @@
 import { StateGraph } from "@langchain/langgraph";
 import { ResearchState, researchStateChannels } from "../types/research-state";
-import { searchForNichesNode, analyzeAndScoreNicheNode } from "./research-nodes";
+import { researchPlanNode, researchExecuteNode, analyzeAndScoreNicheNode } from "./research-nodes";
 
 /**
  * The Research Agent Workflow
- * 1. Search (Discovery)
- * 2. Analysis & Scoring
- * 3. End
+ * 1. Plan (Discovery)
+ * 2. Execute (Search)
+ * 3. Analysis & Scoring
+ * 4. End
  */
 const workflow = new StateGraph<ResearchState>({
     channels: researchStateChannels as any
 })
-    .addNode("search", searchForNichesNode as any)
+    .addNode("plan", researchPlanNode as any)
+    .addNode("execute", researchExecuteNode as any)
     .addNode("analyze", analyzeAndScoreNicheNode as any)
-    .addEdge("__start__", "search")
-    .addEdge("search", "analyze")
+    .addEdge("__start__", "plan")
+    .addEdge("plan", "execute")
+    .addEdge("execute", "analyze")
     .addEdge("analyze", "__end__");
 
 // Compile the graph
