@@ -88,6 +88,7 @@ jobs:
           image: '${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/phantom-apollo:${{ github.sha }}'
           flags: '--allow-unauthenticated'
           env_vars: |
+            DATABASE_URL=${{ secrets.DATABASE_URL }}
             NODE_ENV=production
             SUPABASE_URL=${{ secrets.SUPABASE_URL }}
             SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
@@ -147,6 +148,7 @@ jobs:
           image: '${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/phantom-apollo-api:${{ github.sha }}'
           flags: '--allow-unauthenticated --memory=2Gi'
           env_vars: |
+            DATABASE_URL=${{ secrets.DATABASE_URL }}
             NODE_ENV=production
             SUPABASE_URL=${{ secrets.SUPABASE_URL }}
             SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
