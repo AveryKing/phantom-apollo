@@ -34,7 +34,7 @@ WORKDIR /app
 COPY --from=builder /app/agent-chat-ui/.next ./.next
 COPY --from=builder /app/agent-chat-ui/public ./public
 COPY --from=builder /app/agent-chat-ui/package.json ./package.json
-COPY --from=builder /app/agent-chat-ui/next.config.js ./next.config.js
+COPY --from=builder /app/agent-chat-ui/next.config.mjs ./next.config.mjs
 COPY --from=builder /app/agent-chat-ui/node_modules ./node_modules
 
 EXPOSE 3000
