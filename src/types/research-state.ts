@@ -85,5 +85,13 @@ export const researchStateChannels: Record<string, any> = {
     error: (current: string | undefined, next: string | undefined) => next || current,
     findings: (current: string | undefined, next: string | undefined) => next || current,
     discordToken: (current: string | undefined, next: string | undefined) => next || current,
-    applicationId: (current: string | undefined, next: string | undefined) => next || current
+    applicationId: (current: string | undefined, next: string | undefined) => next || current,
+    leads: {
+        reducer: (current: any[], next: any[]) => (current || []).concat(next || []),
+        default: () => []
+    },
+    messages: {
+        reducer: (current: any[], next: any[]) => (current || []).concat(next || []),
+        default: () => []
+    }
 };

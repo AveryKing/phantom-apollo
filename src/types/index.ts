@@ -11,10 +11,6 @@ import { Lead } from './db-types';
 
 import { BaseMessage } from "@langchain/core/messages";
 
-/**
- * The Master State for the Business Development Agent.
- * Inherits all research fields and adds prospecting/outreach data.
- */
 export interface AgentState extends ResearchState {
     /** Leads found during prospecting */
     leads: Lead[];
@@ -24,4 +20,7 @@ export interface AgentState extends ResearchState {
 
     /** Messages for streaming updates to UI */
     messages?: BaseMessage[];
+
+    /** Index signature for LangGraph compatibility */
+    [key: string]: any;
 }

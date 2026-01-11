@@ -12,9 +12,9 @@ import { researchPlanNode, researchExecuteNode, analyzeAndScoreNicheNode } from 
 const workflow = new StateGraph<AgentState>({
     channels: researchStateChannels as any
 })
-    .addNode("plan", researchPlanNode)
-    .addNode("execute", researchExecuteNode)
-    .addNode("analyze", analyzeAndScoreNicheNode)
+    .addNode("plan", researchPlanNode as any)
+    .addNode("execute", researchExecuteNode as any)
+    .addNode("analyze", analyzeAndScoreNicheNode as any)
     .addEdge("__start__", "plan")
     .addEdge("plan", "execute")
     .addEdge("execute", "analyze")
@@ -41,7 +41,7 @@ export async function runResearch(niche: string) {
         };
 
         console.log(`🚀 Launching Research Agent for: ${niche}`);
-        const finalState = await researchGraph.invoke(initialState);
+        const finalState = await researchGraph.invoke(initialState as any);
         return finalState;
     } catch (error) {
         console.error('❌ [Research] Error running research:', error);

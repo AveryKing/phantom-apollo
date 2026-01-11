@@ -6,8 +6,8 @@ import { RunnableConfig } from "@langchain/core/runnables";
  * Initialize Langfuse client
  */
 export const langfuse = new Langfuse({
-    publicKey: process.env.LANGFUSE_PUBLIC_KEY,
-    secretKey: process.env.LANGFUSE_SECRET_KEY,
+    publicKey: process.env.LANGFUSE_PUBLIC_KEY || "",
+    secretKey: process.env.LANGFUSE_SECRET_KEY || "",
     baseUrl: process.env.LANGFUSE_HOST || "https://us.cloud.langfuse.com",
 });
 
@@ -25,8 +25,8 @@ export function createLangfuseHandler(options?: {
     tags?: string[];
 }): LangfuseCallbackHandler {
     return new LangfuseCallbackHandler({
-        publicKey: process.env.LANGFUSE_PUBLIC_KEY,
-        secretKey: process.env.LANGFUSE_SECRET_KEY,
+        publicKey: process.env.LANGFUSE_PUBLIC_KEY || "",
+        secretKey: process.env.LANGFUSE_SECRET_KEY || "",
         baseUrl: process.env.LANGFUSE_HOST || "https://us.cloud.langfuse.com",
         sessionId: options?.sessionId,
         userId: options?.userId,
