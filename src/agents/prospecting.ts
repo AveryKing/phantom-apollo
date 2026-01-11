@@ -6,6 +6,7 @@ import { supabase } from "../tools/supabase";
 
 import { generateGeminiText } from "../tools/vertex-ai";
 import { AgentState } from "../types";
+import { dispatchLeadTask } from "../tools/cloud-tasks";
 
 export async function prospectingNode(state: AgentState) {
     console.log(`🎯 Starting prospecting for: ${state.niche}`);
@@ -78,7 +79,7 @@ export async function prospectingNode(state: AgentState) {
         console.error("Failed to parse leads JSON", extractText);
     }
 
-    // 3. Save leads
+    // 3. Save leads & Dispatch Tasks
     const savedLeads = [];
 
     // Get niche ID
@@ -102,9 +103,23 @@ export async function prospectingNode(state: AgentState) {
             stage: 'new'
         }, { onConflict: 'linkedin_url' }).select().single();
 
-        if (data) savedLeads.push(data);
+        if (data) {
+            savedLeads.push(data);
+            // Dispatch async task for Visionary/Closer processing
+            try {
+                await dispatchLeadTask(data.id, state.discordToken);
+            } catch (err) {
+                console.error(`Failed to dispatch lead ${data.id}:`, err);
+            }
+        }
     }
 
-    console.log(`✅ Found ${savedLeads.length} leads`);
+    console.log(`✅ Found and queued ${savedLeads.length} leads`);
+
+    if (state.discordToken && savedLeads.length > 0) {
+        const { sendDiscordFollowup } = require("../tools/discord");
+        await sendDiscordFollowup(state.discordToken, `⛓️ **Task Queue:** ${savedLeads.length} leads added to the processing pipeline. 🤖 Throttled analysis starting...`);
+    }
+
     return { ...state, leads: savedLeads };
 }

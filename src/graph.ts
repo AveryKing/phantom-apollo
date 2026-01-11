@@ -4,18 +4,15 @@ import { AgentState } from "./types";
 import { researchStateChannels } from "./types/research-state";
 import { searchForNichesNode, analyzeAndScoreNicheNode } from "./agents/research-nodes";
 import { prospectingNode } from "./agents/prospecting";
-import { outreachNode } from "./agents/outreach";
-import { feedbackLoopNode } from "./agents/feedback-node";
 
 /**
- * Master Business Development Graph
+ * Master Business Development Graph (Discovery Phase)
  * 
  * Flow:
  * 1. Research (Discovery)
  * 2. Analyze (Scoring)
  * 3. Conditional: Proceed to Prospecting only if Niche is Validated
- * 4. Prospecting (Lead Gen)
- * 5. Outreach (Message Delivery)
+ * 4. Prospecting (Lead Gen + Queue Tasks)
  */
 
 // Channels for State Sync
@@ -23,6 +20,7 @@ const masterChannels = {
     ...researchStateChannels,
     leads: (current: any[], next: any[]) => next || current,
     findings: (current: any, next: any) => next || current,
+    discordToken: (current: any, next: any) => next || current,
 };
 
 const workflow = new StateGraph<AgentState>({
@@ -32,8 +30,6 @@ const workflow = new StateGraph<AgentState>({
     .addNode("research_search", searchForNichesNode as any)
     .addNode("research_analyze", analyzeAndScoreNicheNode as any)
     .addNode("prospecting", prospectingNode as any)
-    .addNode("outreach", outreachNode as any)
-    .addNode("feedback", feedbackLoopNode as any)
 
     // Define Edges
     .addEdge("__start__", "research_search")
@@ -48,9 +44,7 @@ const workflow = new StateGraph<AgentState>({
         }
     )
 
-    .addEdge("prospecting", "outreach")
-    .addEdge("outreach", "feedback")
-    .addEdge("feedback", "__end__");
+    .addEdge("prospecting", "__end__");
 
 // Compile the graph
 export const graph = workflow.compile();
@@ -59,7 +53,7 @@ export const graph = workflow.compile();
  * Beast Mode Runner
  */
 export async function runBeastMode(niche: string, discordToken?: string) {
-    console.log(`🚀 [BEAST MODE] Starting full pipeline for: ${niche}`);
+    console.log(`🚀 [BEAST MODE] Starting Discovery Pipeline for: ${niche}`);
 
     const initialState: AgentState = {
         niche,
@@ -74,26 +68,24 @@ export async function runBeastMode(niche: string, discordToken?: string) {
     };
 
     if (discordToken) {
-        // Initial feedback
         const { sendDiscordFollowup } = require("./tools/discord");
-        await sendDiscordFollowup(discordToken, `🚀 **Starting Hunt:** ${niche}\n\n*Agents Initialized...*`);
+        await sendDiscordFollowup(discordToken, `🚀 **Starting Hunt:** ${niche}\n\n*Initializing Discovery Agents...*`);
     }
 
     const finalState = await graph.invoke(initialState as any) as unknown as AgentState;
 
-    console.log(`🏁 [BEAST MODE] Pipeline finished for: ${niche}`);
+    console.log(`🏁 [BEAST MODE] Discovery Pipeline finished for: ${niche}`);
     console.log(`📊 Status: ${finalState.status}`);
-    console.log(`👥 Leads Processed: ${finalState.leads?.length || 0}`);
+    console.log(`👥 Leads Found: ${finalState.leads?.length || 0}`);
 
     if (discordToken) {
         const { sendDiscordFollowup } = require("./tools/discord");
-        const summary = `🏁 **Hunt Complete**
+        const summary = `🏁 **Discovery Complete**
 **Status:** ${finalState.status.toUpperCase()}
 **Leads Found:** ${finalState.leads?.length || 0}
-**Verdict:** ${finalState.researchNotes || "N/A"}`;
+**Next Steps:** Leads have been added to the task queue for AI vision and outreach drafting.`;
         await sendDiscordFollowup(discordToken, summary);
     }
 
     return finalState;
 }
- 
