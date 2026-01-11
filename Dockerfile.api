@@ -22,12 +22,11 @@ COPY . .
 # Build the project
 RUN npm run build
 
-# Expose the LangGraph server port
-EXPOSE 2024
-
+# Expose the port (Cloud Run uses PORT env var)
 # Set production env
 ENV NODE_ENV=production
+EXPOSE 8080
 
 # Command to run the LangGraph server
-# We use npx to run the cli from local dependencies
-CMD ["npx", "@langchain/langgraph-cli", "dev", "--host", "0.0.0.0", "--port", "2024"]
+# We use the shell form to allow environment variable expansion
+CMD npx @langchain/langgraph-cli dev --host 0.0.0.0 --port ${PORT:-8080}
