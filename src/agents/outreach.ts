@@ -1,47 +1,44 @@
-
-import { getGeminiModel } from "../tools/vertex-ai";
-import { HumanMessage, SystemMessage } from "@langchain/core/messages";
+import { generateGeminiStructured } from "../tools/vertex-ai";
+import { HumanMessage, SystemMessage, AIMessage } from "@langchain/core/messages";
 import { OutreachState } from "../types/outreach-types";
 import { AgentState } from "../types";
 import { insertRecord } from "../tools/supabase";
-
-// Initialize LLM for Outreach
-const model = getGeminiModel(false);
+import { RunnableConfig } from "@langchain/core/runnables";
 
 /**
  * Main Outreach Node for LangGraph.
  * Iterates through discovered leads and generates research-backed drafts.
  */
-export async function outreachNode(state: AgentState): Promise<Partial<AgentState>> {
+export async function outreachNode(state: AgentState, config?: RunnableConfig): Promise<Partial<AgentState>> {
     const leads = state.leads || [];
     if (leads.length === 0) {
         console.warn("⚠️ No leads found for outreach.");
         return state;
     }
 
-    console.log(`🤖 Processing outreach for ${leads.length} leads in niche: ${state.niche}`);
-
-    if (state.discordToken) {
-        const { sendDiscordFollowup } = require("../tools/discord");
-        await sendDiscordFollowup(state.discordToken, `✉️ **Outreach:** Drafting ${leads.length} personalized messages based on discovered pain points...`);
-    }
+    console.log("");
+    console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    console.log(`✉️ [OUTREACH] Node: Message Drafting`);
+    console.log(`🎯 [TARGET] Niche: ${state.niche}`);
+    console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    console.log(`💭 [THOUGHT] Processing ${leads.length} leads to generate personalized research-backed outreach...`);
 
     const nicheContext = state.researchNotes || `Niche focusing on ${state.niche} pain points.`;
 
     for (const lead of leads) {
         try {
-            console.log(`📝 Drafting for: ${lead.company_name} (${lead.url})`);
+            console.log(`📝 Drafting for: ${lead.name || 'Unknown'} @ ${lead.company || 'Unknown'}`);
 
             // 1. Prepare Drafting State
             const outreachState: OutreachState = {
                 leadId: lead.id || 'unknown',
                 context: {
-                    name: lead.company_name, // Using company name as proxy for lead name if generic
-                    company: lead.company_name,
-                    role: "Decision Maker", // Default
-                    recent_activity: lead.url
+                    name: lead.name || 'there',
+                    company: lead.company || 'your company',
+                    role: lead.role || "Decision Maker",
+                    recent_activity: lead.linkedin_url || lead.url
                 },
-                channel: 'email', // Defaulting to email for first version
+                channel: 'email',
                 nicheContext,
                 status: 'analyzing'
             };
@@ -54,7 +51,7 @@ export async function outreachNode(state: AgentState): Promise<Partial<AgentStat
                 await insertRecord('messages', {
                     lead_id: lead.id,
                     channel: outreachState.channel,
-                    subject: result.draft.subject || `Quick question for ${lead.company_name}`,
+                    subject: result.draft.subject || `Quick question for ${lead.company}`,
                     content: result.draft.content,
                     status: 'draft'
                 });
@@ -64,14 +61,18 @@ export async function outreachNode(state: AgentState): Promise<Partial<AgentStat
         }
     }
 
-    return state;
+    return {
+        ...state,
+        messages: [new AIMessage(`✉️ Outreach complete. Drafted ${leads.length} personalized messages based on the identified pain points.`)]
+    };
 }
 
 /**
  * Core drafting logic using Gemini.
- * Extracted from the Node to allow for testing and recursive calls.
  */
 async function draftMessageLogic(state: OutreachState): Promise<Partial<OutreachState>> {
+    console.log(`🤖 [Gemini] Calling Structured Generation for Outreach...`);
+
     const prompt = `
         You are a world-class sales copywriter.
         Lead: ${state.context.name}
@@ -87,21 +88,19 @@ async function draftMessageLogic(state: OutreachState): Promise<Partial<Outreach
         - Be concise: Under 100 words.
         - Tone: Professional, helpful, curious. NOT salesy.
         - Call to Action: A low-friction question.
-
-        Output ONLY a valid raw JSON object:
-        {
-            "subject": "...",
-            "content": "..."
-        }
     `;
 
-    try {
-        const response = await model.generateContent({
-            contents: [{ role: 'user', parts: [{ text: "You are a professional outreach drafting agent specializing in personalized B2B messages.\n" + prompt }] }]
-        });
+    const schema = {
+        type: "OBJECT",
+        properties: {
+            subject: { type: "STRING" },
+            content: { type: "STRING" }
+        },
+        required: ["subject", "content"]
+    };
 
-        const text = response.response.candidates?.[0]?.content?.parts?.[0]?.text?.replace(/```json/g, '').replace(/```/g, '').trim() || "{}";
-        const draft = JSON.parse(text);
+    try {
+        const draft = await generateGeminiStructured<any>(prompt, schema);
 
         return {
             draft,

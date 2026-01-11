@@ -1,14 +1,22 @@
-import { generateGeminiText } from "../tools/vertex-ai";
+import { generateGeminiText, generateGeminiStructured } from "../tools/vertex-ai";
 import { googleSearch, GoogleSearchResult } from "../tools/google-search";
 import { supabase } from "../tools/supabase";
 import { AgentState } from "../types";
+import { AIMessage } from "@langchain/core/messages";
+import { withLangfuseTracing } from "../lib/tracing";
+import { RunnableConfig } from "@langchain/core/runnables";
 
 /**
  * Node 1: Niche Discovery (Search)
  * Responsible for generating search queries and fetching raw data.
  */
-export async function searchForNichesNode(state: AgentState) {
-    console.log(`🔍 [ResearchAgent] Discovering pain points for niche: ${state.niche}`);
+export async function searchForNichesNode(state: AgentState, config?: RunnableConfig) {
+    console.log("");
+    console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    console.log(`🔬 [RESEARCH] Node: Niche Discovery`);
+    console.log(`🎯 [TARGET] Niche: ${state.niche}`);
+    console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    console.log("💭 [THOUGHT] Creating strategic search queries to find real business pain points...");
 
     const prompt = `
     You are a business research analyst researching the "${state.niche}" industry.
@@ -31,7 +39,8 @@ export async function searchForNichesNode(state: AgentState) {
     }
 
     try {
-        const rawText = await generateGeminiText(prompt);
+        console.log("📡 [RESEARCH] Fetching grounded insights for initial discovery...");
+        const rawText = await generateGeminiText(prompt, true); // GROUNDING ENABLED!
 
         // Robust Extraction using [QUERY] tags or line-by-line fallback
         const queryMatches = rawText.match(/\[QUERY\](.*?)\[\/QUERY\]/gs);
@@ -40,6 +49,9 @@ export async function searchForNichesNode(state: AgentState) {
         if (queryMatches) {
             queries = queryMatches.map(m => m.replace(/\[\/?QUERY\]/g, '').trim()).filter(q => q.length > 3);
         }
+
+        // Clean any remaining tags if they leaked into lines
+        queries = queries.map(q => q.replace(/\[\/?QUERY\]/g, '').trim());
 
         // Fallback Strategy: If extraction failed or returned too few, try line-based extraction
         if (queries.length < 2) {
@@ -72,19 +84,24 @@ export async function searchForNichesNode(state: AgentState) {
             await sendDiscordFollowup(state.discordToken, `🔬 **Researching:** Executing ${queries.length} deep-dive searches...`);
         }
 
-        // 2. Execute Searches
+        // 2. Execute Searches (Parallelized)
         let allResults: string[] = [];
-        for (const query of queries) {
+
+        const searchPromises = queries.map(async (query) => {
             try {
                 const results = await googleSearch(query, 5);
                 if (results.length > 0) {
                     const formattedResults = results.map((r: GoogleSearchResult) => `Title: ${r.title}\nLink: ${r.link}\nSnippet: ${r.snippet}`).join('\n\n');
-                    allResults.push(`### RESULTS FOR: ${query}\n${formattedResults}`);
+                    return `### RESULTS FOR: ${query}\n${formattedResults}`;
                 }
             } catch (err) {
                 console.error(`❌ Search failed for query "${query}":`, err);
             }
-        }
+            return null;
+        });
+
+        const results = await Promise.all(searchPromises);
+        allResults = results.filter((r): r is string => r !== null);
 
         if (allResults.length === 0) {
             console.warn(`🛑 No web results found for "${state.niche}". Using internal knowledge fallback.`);
@@ -98,7 +115,8 @@ export async function searchForNichesNode(state: AgentState) {
         return {
             queries: queries,
             searchResults: allResults,
-            status: 'analyzing'
+            status: 'analyzing',
+            messages: [new AIMessage(`🔍 Research complete. I found ${allResults.length} relevant sources for "${state.niche}". Now analyzing for pain points...`)]
         };
 
     } catch (error: any) {
@@ -114,8 +132,13 @@ export async function searchForNichesNode(state: AgentState) {
  * Node 2: Analysis & Scoring
  * Extracts pain points and evaluates the niche viability.
  */
-export async function analyzeAndScoreNicheNode(state: AgentState) {
-    console.log(`📊 [ResearchAgent] Analyzing results for: ${state.niche}`);
+export async function analyzeAndScoreNicheNode(state: AgentState, config?: RunnableConfig) {
+    console.log("");
+    console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    console.log(`📊 [RESEARCH] Node: Analysis & Scoring`);
+    console.log(`🎯 [TARGET] Niche: ${state.niche}`);
+    console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    console.log(`💭 [THOUGHT] Processing ${state.searchResults.length} research findings to identify high-value pain points...`);
 
     if (state.discordToken) {
         const { sendDiscordFollowup } = require("../tools/discord");
@@ -147,41 +170,39 @@ export async function analyzeAndScoreNicheNode(state: AgentState) {
         }
         `;
 
-    try {
-        const content = await generateGeminiText(prompt);
-
-        // Robust JSON Extraction Strategy
-        let data;
-
-        // Strategy 1: Look for markdown code blocks
-        const codeBlockMatch = content.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-        if (codeBlockMatch) {
-            try {
-                data = JSON.parse(codeBlockMatch[1]);
-            } catch (e) {
-                console.warn("Found code block but failed to parse JSON, falling back to heuristic search.");
-            }
-        }
-
-        // Strategy 2: Heuristic Search (Find first '{' that leads to valid JSON)
-        if (!data) {
-            let startIndex = content.indexOf('{');
-            const endIndex = content.lastIndexOf('}');
-
-            while (startIndex !== -1 && startIndex < endIndex) {
-                try {
-                    const potentialJson = content.substring(startIndex, endIndex + 1);
-                    data = JSON.parse(potentialJson);
-                    break; // Success!
-                } catch (e) {
-                    startIndex = content.indexOf('{', startIndex + 1);
+    const researchSchema = {
+        type: "OBJECT",
+        properties: {
+            painPoints: {
+                type: "ARRAY",
+                items: {
+                    type: "OBJECT",
+                    properties: {
+                        problem: { type: "STRING" },
+                        why_it_hurts: { type: "STRING" },
+                        pain_score: { type: "NUMBER" }
+                    },
+                    required: ["problem", "why_it_hurts", "pain_score"]
                 }
-            }
-        }
+            },
+            scores: {
+                type: "OBJECT",
+                properties: {
+                    marketSize: { type: "NUMBER" },
+                    competition: { type: "NUMBER" },
+                    willingnessToPay: { type: "NUMBER" },
+                    overall: { type: "NUMBER" }
+                },
+                required: ["marketSize", "competition", "willingnessToPay", "overall"]
+            },
+            verdict: { type: "STRING" },
+            status: { type: "STRING", enum: ["validated", "rejected"] }
+        },
+        required: ["painPoints", "scores", "verdict", "status"]
+    };
 
-        if (!data) {
-            throw new Error("Could not extract valid JSON from LLM response.");
-        }
+    try {
+        const data = await generateGeminiStructured<any>(prompt, researchSchema, true); // GROUNDING ENABLED!
 
         // Normalize scores to ensure they exist
         const scores = {
@@ -211,7 +232,8 @@ export async function analyzeAndScoreNicheNode(state: AgentState) {
             painPoints: data.painPoints,
             researchNotes: data.verdict,
             scores: scores,
-            status: status
+            status: status,
+            messages: [new AIMessage(`📊 Analysis complete. Score: ${scores.overall}/10. Status: ${status}. Proceeding to next phase...`)]
         };
 
     } catch (error: any) {

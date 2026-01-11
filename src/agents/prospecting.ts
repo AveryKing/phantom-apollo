@@ -1,15 +1,18 @@
-
-import { getGeminiModel } from "../tools/vertex-ai";
-import { HumanMessage, SystemMessage } from "@langchain/core/messages";
-import { webSearch } from "../tools/web-search";
+import { generateGeminiText, generateGeminiStructured } from "../tools/vertex-ai";
+import { HumanMessage, SystemMessage, AIMessage } from "@langchain/core/messages";
+import { webSearch } from "../tools/google-search";
 import { supabase } from "../tools/supabase";
-
-import { generateGeminiText } from "../tools/vertex-ai";
 import { AgentState } from "../types";
 import { dispatchLeadTask } from "../tools/cloud-tasks";
+import { RunnableConfig } from "@langchain/core/runnables";
 
-export async function prospectingNode(state: AgentState) {
-    console.log(`🎯 Starting prospecting for: ${state.niche}`);
+export async function prospectingNode(state: AgentState, config?: RunnableConfig) {
+    console.log("");
+    console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    console.log(`🎯 [PROSPECTING] Node: Lead Generation`);
+    console.log(`🎯 [TARGET] Niche: ${state.niche}`);
+    console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    console.log(`💭 [THOUGHT] Identifying decision makers and hunting for leads in ${state.niche}...`);
 
     // 1. Generate search queries for people
     const leadProblem = state.painPoints?.[0]?.problem || 'business growth';
@@ -26,7 +29,7 @@ export async function prospectingNode(state: AgentState) {
     Return just the Job Title (e.g. "Agency Owner", "Head of Sales").
     `;
 
-    const targetRole = await generateGeminiText(queryPrompt) || "Decision Maker";
+    const targetRole = await generateGeminiText(queryPrompt, true) || "Decision Maker"; // GROUNDING ENABLED!
 
     console.log(`🔍 Looking for candidates: ${targetRole.trim()}`);
 
@@ -42,16 +45,19 @@ export async function prospectingNode(state: AgentState) {
         `"${nicheKeywords}" owner contact email`
     ];
 
-    let rawLeads = "";
-    for (const q of searchStrategies) {
-        try {
-            console.log(`📡 [Prospector] Searching: ${q}`);
-            const result = await webSearch(q);
-            rawLeads += `\n--- Query: ${q} ---\n${result}\n`;
-        } catch (e) {
-            console.error(`Search failed for ${q}`, e);
-        }
-    }
+    const searchResults = await Promise.all(
+        searchStrategies.map(async (q) => {
+            try {
+                console.log(`📡 [Prospector] Searching: ${q}`);
+                const result = await webSearch(q);
+                return `\n--- Query: ${q} ---\n${result}\n`;
+            } catch (e) {
+                console.error(`Search failed for ${q}`, e);
+                return "";
+            }
+        })
+    );
+    const rawLeads = searchResults.join("");
 
     console.log(`📊 [Prospector] Search complete. Data size: ${rawLeads.length} chars.`);
 
@@ -64,7 +70,7 @@ export async function prospectingNode(state: AgentState) {
     Search Results:
     ${rawLeads}
     
-    Return a list of VALID JSON objects. If you can't find a clear name/company, skip it.
+    Return a list of VALID JSON objects. If you can't find a clear name/company, skip it. Limit to top 10 high-quality matches.
     [
         {
             "name": "Full Name",
@@ -76,27 +82,43 @@ export async function prospectingNode(state: AgentState) {
     ]
     `;
 
-    const extractTextRaw = await generateGeminiText({
-        contents: [{ role: 'user', parts: [{ text: extractionPrompt + "\nYou are a data extraction engine. Output valid JSON only." }] }]
-    });
+    const leadSchema = {
+        type: "ARRAY",
+        items: {
+            type: "OBJECT",
+            properties: {
+                name: { type: "STRING", description: "Full Name of the lead" },
+                company: { type: "STRING", description: "Name of the company" },
+                role: { type: "STRING", description: "Job title or role" },
+                linkedin_url: { type: "STRING", description: "LinkedIn profile URL if found" },
+                context: { type: "STRING", description: "Brief context or pain points mentioned" }
+            },
+            required: ["name", "company", "role"]
+        }
+    };
 
-    const extractText = extractTextRaw.replace(/```json/g, '').replace(/```/g, '').trim() || "[]";
-
-    let leads = [];
-    try {
-        leads = JSON.parse(extractText);
-    } catch (e) {
-        console.error("Failed to parse leads JSON", extractText);
-    }
+    const leads = await generateGeminiStructured<any[]>(extractionPrompt, leadSchema);
 
     // 3. Save leads & Dispatch Tasks
     const savedLeads = [];
 
     // Get niche ID
-    const { data: nicheData } = await supabase.from('niches').select('id').eq('name', state.niche).single();
+    let { data: nicheData } = await supabase.from('niches').select('id').eq('name', state.niche).single();
+
+    // Fallback: Create if not found (e.g. if research node DB save failed)
     if (!nicheData) {
-        console.error("Niche not found in DB");
-        return { ...state, leads: [] };
+        console.warn("Niche not found in DB (Recovery Mode). Creating now...");
+        const { data: newNiche, error } = await supabase.from('niches').insert({
+            name: state.niche,
+            status: 'active',
+            updated_at: new Date().toISOString()
+        }).select('id').single();
+
+        if (error || !newNiche) {
+            console.error("Critical: Failed to create niche recovery record.", error);
+            return { ...state, leads: [] };
+        }
+        nicheData = newNiche;
     }
 
     for (const lead of leads) {
@@ -131,5 +153,9 @@ export async function prospectingNode(state: AgentState) {
         await sendDiscordFollowup(state.discordToken, `⛓️ **Task Queue:** ${savedLeads.length} leads added to the processing pipeline. 🤖 Throttled analysis starting...`);
     }
 
-    return { ...state, leads: savedLeads };
+    return {
+        ...state,
+        leads: savedLeads,
+        messages: [new AIMessage(`✅ Prospecting complete. I found ${savedLeads.length} leads matching the criteria. Tasks have been dispatched for vision analysis.`)]
+    };
 }
