@@ -1,5 +1,5 @@
 import { supabase } from '../tools/supabase';
-import { takeScreenshot } from '../tools/browser';
+import { captureScreenshot, analyzeWebsiteVibe } from '../tools/vision';
 import { getGeminiModel, generateGeminiText } from '../tools/vertex-ai';
 import { sendDiscordFollowup } from '../tools/discord';
 import { uploadScreenshot } from '../tools/gcp';
@@ -54,39 +54,28 @@ export async function processSingleLead(leadId: string, discordToken?: string) {
             const targetUrl = lead.url || (lead.company?.includes('.') ? `https://${lead.company}` : null);
 
             if (targetUrl) {
-                const visionSpan = trace.span({ name: 'visionary-analysis', input: { url: targetUrl } });
+                const visionSpan = trace.span({ name: 'vision_check', input: { url: targetUrl } });
                 try {
-                    const base64Image = await takeScreenshot(targetUrl);
+                    const base64Image = await captureScreenshot(targetUrl);
 
-                    // Upload to GCS
+                    // Visionary Analysis (Centralized)
+                    const analysis = await analyzeWebsiteVibe(base64Image);
+
+                    visualAnalysisResult = {
+                        visual_vibe_score: analysis.modernityScore,
+                        visual_analysis: analysis.verdict,
+                        pain_points: [analysis.style, analysis.businessType]
+                    };
+
+                    // Upload to GCS for evidence
                     try {
-                        screenshotUrl = await uploadScreenshot(base64Image, `${leadId}-${Date.now()}.jpg`);
+                        screenshotUrl = await uploadScreenshot(base64Image, `${leadId}-${Date.now()}.webp`);
                         console.log(`🖼️ [LeadProcessor] Screenshot uploaded: ${screenshotUrl}`);
                     } catch (gcsError) {
                         console.error("⚠️ GCS Upload failed:", gcsError);
                     }
 
-                    const visionModel = getGeminiModel(false);
-                    const visionPrompt = visionPromptTemplate.compile({
-                        name: lead.name,
-                        company: lead.company
-                    });
-
-                    const visionResult = await visionModel.generateContent({
-                        contents: [{
-                            role: 'user',
-                            parts: [
-                                { text: visionPrompt },
-                                { inlineData: { mimeType: 'image/jpeg', data: base64Image } }
-                            ]
-                        }]
-                    });
-
-                    const visionText = visionResult.response.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
-                    const cleanJson = visionText.replace(/```json/g, '').replace(/```/g, '').trim();
-                    visualAnalysisResult = JSON.parse(cleanJson);
-
-                    visionSpan.end({ output: visualAnalysisResult });
+                    visionSpan.end({ output: analysis });
                     console.log(`🎨 [Visionary] Analyzed ${targetUrl}. Score: ${visualAnalysisResult.visual_vibe_score}`);
                 } catch (e) {
                     console.warn(`⚠️ [Visionary] Skipped vision for ${lead.company}: ${e instanceof Error ? e.message : 'Unknown error'}`);

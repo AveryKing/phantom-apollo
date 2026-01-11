@@ -214,15 +214,15 @@ export async function analyzeAndScoreNicheNode(state: AgentState, config?: Runna
 
         const status = data.status || (scores.overall >= 7 ? 'validated' : 'rejected');
 
-        // 3. Persist to Database
+        // 3. Persist to Database (Ensure integers)
         const { error: dbError } = await supabase.from('niches').upsert({
             name: state.niche,
             description: data.verdict || "N/A",
             pain_points: data.painPoints,
-            market_size_score: scores.marketSize,
-            competition_score: scores.competition,
-            willingness_to_pay_score: scores.willingnessToPay,
-            overall_score: scores.overall,
+            market_size_score: Math.round(scores.marketSize),
+            competition_score: Math.round(scores.competition),
+            willingness_to_pay_score: Math.round(scores.willingnessToPay),
+            overall_score: Math.round(scores.overall),
             status: status
         }, { onConflict: 'name' });
 

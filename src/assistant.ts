@@ -167,14 +167,24 @@ function createAssistantGraph() {
     .addNode("beast_mode", beastGraph) // Mount the Subgraph!
 
     .addConditionalEdges(START, (state: AssistantState) => {
-      const { isHunt } = extractHuntCommand(state.messages);
-      if (isHunt) return "prepare_hunt";
+      console.log(`🔍 [ROUTING] Evaluating state. Messages: ${state.messages.length}, Niche: ${state.niche}`);
 
-      // If we have an active niche and the user is approving/continuing, go back to beast_mode
-      if (state.niche && isContinuationMessage(state.messages)) {
+      const { isHunt, niche } = extractHuntCommand(state.messages);
+      const isApproval = isContinuationMessage(state.messages);
+
+      console.log(`🔍 [ROUTING] isHunt: ${isHunt}, isApproval: ${isApproval}`);
+
+      if (isHunt) {
+        console.log(`↪️ [ROUTING] Path: prepare_hunt (Niche: ${niche})`);
+        return "prepare_hunt";
+      }
+
+      if (state.niche && isApproval) {
+        console.log(`↪️ [ROUTING] Path: beast_mode (Approval detected for ${state.niche})`);
         return "beast_mode";
       }
 
+      console.log(`↪️ [ROUTING] Path: chat`);
       return "chat";
     })
     .addEdge("prepare_hunt", "beast_mode")
