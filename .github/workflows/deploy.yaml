@@ -61,3 +61,5 @@ jobs:
              SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
              GOOGLE_CLOUD_PROJECT=${{ env.PROJECT_ID }}
              DISCORD_PUBLIC_KEY=${{ secrets.DISCORD_PUBLIC_KEY }}
+             GOOGLE_SEARCH_API_KEY=${{ secrets.GOOGLE_SEARCH_API_KEY }}
+             GOOGLE_CX=${{ secrets.GOOGLE_CX }}
