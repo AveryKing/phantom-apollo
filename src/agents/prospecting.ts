@@ -4,15 +4,13 @@ import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 import { webSearch } from "../tools/web-search";
 import { supabase } from "../tools/supabase";
 
-const model = getGeminiModel(false);
-
+import { generateGeminiText } from "../tools/vertex-ai";
 import { AgentState } from "../types";
 
 export async function prospectingNode(state: AgentState) {
     console.log(`🎯 Starting prospecting for: ${state.niche}`);
 
     // 1. Generate search queries for people
-    // strategy: site:linkedin.com/in/ "Target Role" "Niche"
     const leadProblem = state.painPoints?.[0]?.problem || 'business growth';
 
     const queryPrompt = `
@@ -22,15 +20,14 @@ export async function prospectingNode(state: AgentState) {
     Return just the Job Title (e.g. "Agency Owner", "Head of Sales").
     `;
 
-    const roleResponse = await model.generateContent(queryPrompt);
-    const targetRole = roleResponse.response.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "Decision Maker";
+    const targetRole = await generateGeminiText(queryPrompt) || "Decision Maker";
 
     const queries = [
-        `site:linkedin.com/in/ "${targetRole}" "${state.niche}"`,
-        `site:twitter.com "${targetRole}" "${state.niche}"`
+        `site:linkedin.com/in/ "${targetRole.trim()}" "${state.niche}"`,
+        `site:twitter.com "${targetRole.trim()}" "${state.niche}"`
     ];
 
-    console.log(`🔍 Looking for candidates: ${targetRole}`);
+    console.log(`🔍 Looking for candidates: ${targetRole.trim()}`);
 
     let rawLeads = "";
     for (const q of queries) {
@@ -63,10 +60,11 @@ export async function prospectingNode(state: AgentState) {
     ]
     `;
 
-    const extractResponse = await model.generateContent({
+    const extractTextRaw = await generateGeminiText({
         contents: [{ role: 'user', parts: [{ text: extractionPrompt + "\nYou are a data extraction engine. Output valid JSON only." }] }]
     });
-    const extractText = extractResponse.response.candidates?.[0]?.content?.parts?.[0]?.text?.replace(/```json/g, '').replace(/```/g, '').trim() || "[]";
+
+    const extractText = extractTextRaw.replace(/```json/g, '').replace(/```/g, '').trim() || "[]";
 
     let leads = [];
     try {

@@ -30,7 +30,7 @@ export function getGeminiModel(enableGrounding: boolean = false) {
     }
 
     const modelConfig: any = {
-        model: 'gemini-2.0-flash-exp',
+        model: 'gemini-2.0-flash-exp', // Reverted to experimental but now with robust retries
         safetySettings: [
             {
                 category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
@@ -51,6 +51,36 @@ export function getGeminiModel(enableGrounding: boolean = false) {
     }
 
     return vertexAI.getGenerativeModel(modelConfig);
+}
+
+/**
+ * Robust wrapper for generating text with Gemini, including 429 retries
+ */
+export async function generateGeminiText(promptOrContent: any, enableGrounding: boolean = false): Promise<string> {
+    const model = getGeminiModel(enableGrounding);
+
+    let attempts = 0;
+    const maxAttempts = 5;
+
+    while (attempts < maxAttempts) {
+        try {
+            const result = await model.generateContent(promptOrContent);
+            return result.response.candidates?.[0]?.content?.parts?.[0]?.text || "";
+        } catch (error: any) {
+            attempts++;
+            const isRateLimit = error.message?.includes('429') || error.code === 429 || error.status === 429;
+
+            if (isRateLimit && attempts < maxAttempts) {
+                const waitTime = Math.pow(2, attempts) * 1000 + (Math.random() * 1000); // jitter
+                console.warn(`⏳ [Gemini Rate Limit] Pause for ${Math.round(waitTime)}ms... (Attempt ${attempts}/${maxAttempts})`);
+                await new Promise(resolve => setTimeout(resolve, waitTime));
+            } else {
+                console.error("❌ Gemini Call Failed:", error);
+                throw error;
+            }
+        }
+    }
+    throw new Error('Max retry attempts exceeded for Gemini generation.');
 }
 
 /**

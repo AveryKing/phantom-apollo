@@ -5,7 +5,8 @@ dotenv.config();
 import { runBeastMode } from '../src/graph';
 
 async function main() {
-    const testNiche = "Solar Installers";
+    const args = process.argv.slice(2);
+    const testNiche = args[0] || "Solar Installers";
     console.log(`🔥 Testing Phantom Apollo in Beast Mode...`);
     console.log(`🎯 Target Niche: ${testNiche}`);
 

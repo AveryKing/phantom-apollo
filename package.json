@@ -6,7 +6,8 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/graph.js",
-    "test": "jest"
+    "test": "jest",
+    "local:hunt": "ts-node scripts/test-beast-mode.ts"
   },
   "dependencies": {
     "@google-cloud/aiplatform": "^6.0.0",
