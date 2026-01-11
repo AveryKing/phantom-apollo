@@ -20,18 +20,31 @@ export async function searchForNichesNode(state: ResearchState): Promise<Partial
     You are a business research analyst. I am researching the "${state.niche}" industry.
     Generate 3 specific search queries that would help me find people complaining about their daily business operations, software frustrations, or missing features in this niche.
     Focus on finding forums, Reddit threads, and industry-specific articles.
-    Return ONLY the queries, one per line.
+    
+    IMPORTANT: Return the queries inside [QUERY] tags. Example:
+    [QUERY] "logistics software" complaints forum [/QUERY]
   `;
 
     try {
         const result = await model.generateContent(prompt);
-        const queries = result.response.candidates?.[0]?.content?.parts?.[0]?.text
-            ?.trim()
-            .split('\n')
-            .map((q: string) => q.replace(/^\d+\.\s*/, '').replace(/^"|"$/g, '').trim())
-            .filter((q: string) => q.length > 0) || [];
+        const rawText = result.response.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
-        console.log(`📡 Generated ${queries.length} queries:`, queries);
+        // Robust Extraction using [QUERY] tags
+        const queryMatches = rawText.match(/\[QUERY\](.*?)\[\/QUERY\]/gs);
+        let queries: string[] = [];
+
+        if (queryMatches) {
+            queries = queryMatches.map(m => m.replace(/\[\/?QUERY\]/g, '').trim());
+        } else {
+            // Fallback: cleaning up lines if tags are missing
+            queries = rawText
+                .split('\n')
+                .map(q => q.replace(/^\d+\.\s*/, '').replace(/^"|"$/g, '').trim())
+                .filter(q => q.length > 3 && q.length < 150 && !q.toLowerCase().includes("here are"))
+                .slice(0, 3);
+        }
+
+        console.log(`📡 Extracted ${queries.length} clean queries:`, queries);
 
         // 2. Execute Searches
         let allResults: string[] = [];
