@@ -1,0 +1,149 @@
+@import "tailwindcss";
+
+@plugin "tailwindcss-animate";
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  /* Premium Light Mode - Inspired by Google/Linear */
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.45 0.25 280);
+  /* Deep Indigo */
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.45 0.25 280 / 0.05);
+  --accent-foreground: oklch(0.45 0.25 280);
+  --destructive: oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(0.985 0 0);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.45 0.25 280 / 0.5);
+  --radius: 0.875rem;
+
+  --glass-bg: rgba(255, 255, 255, 0.7);
+  --glass-border: rgba(255, 255, 255, 0.3);
+
+  --chart-1: oklch(0.646 0.222 41.116);
+  --chart-2: oklch(0.6 0.118 184.704);
+  --chart-3: oklch(0.398 0.07 227.392);
+  --chart-4: oklch(0.828 0.189 84.429);
+  --chart-5: oklch(0.769 0.188 70.08);
+}
+
+.dark {
+  /* Premium Dark Mode - Midnight Glass */
+  --background: oklch(0.12 0.04 260);
+  /* Deep Midnight Blue */
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.15 0.05 260 / 0.8);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.15 0.05 260);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.7 0.2 280);
+  /* Electric Violet */
+  --primary-foreground: oklch(0.12 0.04 260);
+  --secondary: oklch(0.2 0.05 260);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.2 0.05 260);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.7 0.2 280 / 0.1);
+  --accent-foreground: oklch(0.7 0.2 280);
+  --destructive: oklch(0.5 0.18 20);
+  --destructive-foreground: oklch(0.985 0 0);
+  --border: oklch(0.2 0.05 260);
+  --input: oklch(0.2 0.05 260);
+  --ring: oklch(0.7 0.2 280 / 0.5);
+
+  --glass-bg: rgba(15, 23, 42, 0.7);
+  --glass-border: rgba(255, 255, 255, 0.08);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background text-foreground transition-colors duration-300;
+  }
+}
+
+@layer utilities {
+  .glass {
+    @apply bg-[var(--glass-bg)] border-[var(--glass-border)] backdrop-blur-xl;
+  }
+
+  .glass-card {
+    @apply bg-[var(--glass-bg)] border-[var(--glass-border)] backdrop-blur-xl border shadow-xl transition-all duration-300;
+  }
+
+  .animated-gradient-bg {
+    background: linear-gradient(-45deg, #ee7752, #e73c7e, #23a6d5, #23d5ab);
+    background-size: 400% 400%;
+    animation: gradient 15s ease infinite;
+  }
+
+  @keyframes gradient {
+    0% {
+      background-position: 0% 50%;
+    }
+
+    50% {
+      background-position: 100% 50%;
+    }
+
+    100% {
+      background-position: 0% 50%;
+    }
+  }
+
+  .text-gradient {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-primary via-primary/80 to-primary/60;
+  }
+
+  .premium-shadow {
+    box-shadow: 0 10px 30px -10px oklch(var(--primary) / 0.3);
+  }
+
+  .shadow-inner-right {
+    box-shadow: inset -9px 0 6px -1px rgb(0 0 0 / 0.02);
+  }
+
+  .shadow-inner-left {
+    box-shadow: inset 9px 0 6px -1px rgb(0 0 0 / 0.02);
+  }
+}
