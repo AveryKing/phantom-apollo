@@ -9,10 +9,18 @@ export interface Niche {
 }
 
 export interface Lead {
-    id?: string;
+    id: string;
     niche_id: string;
-    company_name: string;
-    url: string;
+
+    // Core Data (Grounded/Extraction)
+    name?: string;
+    company?: string;
+    role?: string;
+    linkedin_url?: string;
+
+    // Legacy/Schema compatibility
+    company_name?: string;
+    url?: string;
 
     // Vision Data
     screenshot_url?: string;
@@ -23,7 +31,10 @@ export interface Lead {
     pain_points?: any; // JSONB
     email_draft?: string;
     evaluation_score?: any; // JSONB
+    context?: any;
+    score?: number;
+    stage?: string;
 
-    sent_to_discord: boolean;
+    sent_to_discord?: boolean;
     created_at?: string;
 }

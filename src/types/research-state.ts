@@ -1,6 +1,26 @@
 import { StateGraph } from "@langchain/langgraph";
 
 /**
+ * Evaluation scores for a niche
+ */
+export interface NicheScores {
+    marketSize: number;     // 1-10
+    competition: number;    // 1-10
+    willingnessToPay: number; // 1-10
+    overall: number;        // Calculated average
+}
+
+/**
+ * The internal state of the Research Agent.
+ * Tracks the industry, specific pain points found, and the scores.
+ */
+export interface PainPoint {
+    problem: string;
+    why_it_hurts: string;
+    pain_score: number; // 1-10
+}
+
+/**
  * The internal state of the Research Agent.
  * Tracks the industry, specific pain points found, and the scores.
  */
@@ -15,19 +35,10 @@ export interface ResearchState {
     searchResults: string[];
 
     /** Structured pain points extracted from results */
-    painPoints: Array<{
-        problem: string;
-        why_it_hurts: string;
-        pain_score: number; // 1-10
-    }>;
+    painPoints: PainPoint[];
 
     /** Evaluation scores for the niche */
-    scores: {
-        marketSize: number;     // 1-10
-        competition: number;    // 1-10
-        willingnessToPay: number; // 1-10
-        overall: number;        // Calculated average
-    };
+    scores: NicheScores;
 
     /** Descriptive research notes summarizing findings */
     researchNotes: string;
@@ -39,27 +50,40 @@ export interface ResearchState {
     error?: string;
 
     /** Extra structured context from analysis */
-    findings?: any;
+    findings?: string;
 
     /** Discord Interaction Token for real-time updates */
     discordToken?: string;
-    /** Discord Application ID */
-    applicationId?: string;
+    /** Whether the user has approved the niche for discovery */
+    approved?: boolean;
 }
 
 /**
- * Reducer-like logic for state updates (optional but good for complex updates)
+ * Reducer-like logic for state updates
  */
-export const researchStateChannels = {
+export const researchStateChannels: Record<string, any> = {
     niche: null,
-    queries: (current: string[], next: string[]) => next,
-    searchResults: (current: string[], next: string[]) => (current || []).concat(next),
-    painPoints: (current: any[], next: any[]) => next,
-    scores: null,
-    researchNotes: null,
-    status: null,
-    error: null,
-    findings: null,
-    discordToken: null,
-    applicationId: null
+    approved: (current: boolean | undefined, next: boolean | undefined) => next ?? current,
+    queries: {
+        reducer: (current: string[], next: string[]) => next || current,
+        default: () => []
+    },
+    searchResults: {
+        reducer: (current: string[], next: string[]) => (current || []).concat(next || []),
+        default: () => []
+    },
+    painPoints: {
+        reducer: (current: PainPoint[], next: PainPoint[]) => next || current,
+        default: () => []
+    },
+    scores: {
+        reducer: (current: NicheScores | undefined, next: NicheScores | undefined) => next || current,
+        default: () => ({ marketSize: 0, competition: 0, willingnessToPay: 0, overall: 0 })
+    },
+    researchNotes: (current: string, next: string) => next || current,
+    status: (current: string, next: string) => next || current,
+    error: (current: string | undefined, next: string | undefined) => next || current,
+    findings: (current: string | undefined, next: string | undefined) => next || current,
+    discordToken: (current: string | undefined, next: string | undefined) => next || current,
+    applicationId: (current: string | undefined, next: string | undefined) => next || current
 };
