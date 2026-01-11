@@ -103,12 +103,41 @@ export async function analyzeAndScoreNicheNode(state: ResearchState): Promise<Pa
     try {
         const response = await model.generateContent(prompt);
         const content = response.response.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
-        // Robust JSON Extraction
-        const start = content.indexOf('{');
-        const end = content.lastIndexOf('}');
-        if (start === -1 || end === -1) throw new Error("Could not find JSON in LLM response");
 
-        const data = JSON.parse(content.substring(start, end + 1));
+        // Robust JSON Extraction Strategy
+        let data;
+        let extractionError;
+
+        // Strategy 1: Look for markdown code blocks
+        const codeBlockMatch = content.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+        if (codeBlockMatch) {
+            try {
+                data = JSON.parse(codeBlockMatch[1]);
+            } catch (e) {
+                console.warn("Found code block but failed to parse JSON, falling back to heuristic search.");
+            }
+        }
+
+        // Strategy 2: Heuristic Search (Find first '{' that leads to valid JSON)
+        if (!data) {
+            let startIndex = content.indexOf('{');
+            const endIndex = content.lastIndexOf('}');
+
+            while (startIndex !== -1 && startIndex < endIndex) {
+                try {
+                    const potentialJson = content.substring(startIndex, endIndex + 1);
+                    data = JSON.parse(potentialJson);
+                    break; // Success!
+                } catch (e) {
+                    // Failed to parse, try the next opening brace
+                    startIndex = content.indexOf('{', startIndex + 1);
+                }
+            }
+        }
+
+        if (!data) {
+            throw new Error("Could not extract valid JSON from LLM response. Content dump: " + content.substring(0, 100) + "...");
+        }
 
         const scores = {
             marketSize: data.scores.market_size,
