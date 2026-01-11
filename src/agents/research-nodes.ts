@@ -12,11 +12,15 @@ export async function searchForNichesNode(state: AgentState) {
 
     const prompt = `
     You are a business research analyst researching the "${state.niche}" industry.
-    Generate 3 very simple search queries to find people complaining about business problems or software frustrations.
-    Use terms like "sucks", "problem", "impossible to", "annoying".
+    Generate 3 simple, effective search queries to find business problems or software frustrations.
+    
+    GUIDELINES:
+    - Use broader terms: "scheduling problems", "billing frustration", "appointment issues".
+    - AVOID excessive quotes around every word. Only quote specific phrases if needed.
+    - Focus on finding discussions on Reddit, Quora, or niche forums.
     
     IMPORTANT: Return the queries inside [QUERY] tags. Example:
-    [QUERY] "logistics software" complaints forum [/QUERY]
+    [QUERY] logistics software complaints forum [/QUERY]
     
     DO NOT include any preamble. Start directly with the queries.
   `;

@@ -28,24 +28,32 @@ export async function prospectingNode(state: AgentState) {
 
     const targetRole = await generateGeminiText(queryPrompt) || "Decision Maker";
 
-    const nicheKeywords = state.niche.replace(/SaaS|Software|B2B/gi, '').trim();
-    const queries = [
-        `site:linkedin.com/in/ "${targetRole.trim()}" "${nicheKeywords}"`,
-        `site:twitter.com "${targetRole.trim()}" "${nicheKeywords}"`,
-        `"${targetRole.trim()}" "${nicheKeywords}" contact info`
-    ];
-
     console.log(`🔍 Looking for candidates: ${targetRole.trim()}`);
 
+    const nicheKeywords = state.niche.replace(/SaaS|Software|B2B/gi, '').trim();
+    const searchStrategies = [
+        // Strategy 1: Decision Maker on Socials
+        `site:linkedin.com/in/ "${targetRole.trim()}" "${nicheKeywords}"`,
+        `site:twitter.com "${targetRole.trim()}" "${nicheKeywords}"`,
+        // Strategy 2: Niche Companies / Directories
+        `list of ${nicheKeywords} companies`,
+        `top ${nicheKeywords} businesses "website"`,
+        // Strategy 3: Direct contact/About pages
+        `"${nicheKeywords}" owner contact email`
+    ];
+
     let rawLeads = "";
-    for (const q of queries) {
+    for (const q of searchStrategies) {
         try {
+            console.log(`📡 [Prospector] Searching: ${q}`);
             const result = await webSearch(q);
-            rawLeads += `\n${result}\n`;
+            rawLeads += `\n--- Query: ${q} ---\n${result}\n`;
         } catch (e) {
             console.error(`Search failed for ${q}`, e);
         }
     }
+
+    console.log(`📊 [Prospector] Search complete. Data size: ${rawLeads.length} chars.`);
 
     // 2. Extract and structure lead data
     const extractionPrompt = `
