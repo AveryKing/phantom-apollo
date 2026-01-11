@@ -1,15 +1,11 @@
-import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
+import { getGeminiModel } from "../tools/vertex-ai";
 import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 import { googleSearch } from "../tools/google-search";
 import { insertRecord } from "../tools/supabase";
 import { AgentState } from "../types";
 
-// Initialize LLM (Google AI Studio)
-const model = new ChatGoogleGenerativeAI({
-    model: "gemini-2.0-flash",
-    maxOutputTokens: 2048,
-    apiKey: process.env.GOOGLE_AI_API_KEY || process.env.GOOGLE_SEARCH_API_KEY
-});
+// Initialize LLM (Vertex AI)
+const model = getGeminiModel(false);
 
 export async function researchNicheNode(state: AgentState) {
     console.log(`🔬 Starting research on: ${state.niche}`);
@@ -21,8 +17,8 @@ export async function researchNicheNode(state: AgentState) {
     Return ONLY the 3 queries separated by newlines.
     `;
 
-    const queryResponse = await model.invoke([new HumanMessage(queryPrompt)]);
-    const queries = queryResponse.content.toString().split('\n').filter(q => q.trim().length > 0);
+    const queryResponse = await model.generateContent(queryPrompt);
+    const queries = queryResponse.response.candidates?.[0]?.content?.parts?.[0]?.text?.toString().split('\n').filter(q => q.trim().length > 0) || [];
 
     console.log(`🔍 Searching for:`, queries);
 
@@ -67,18 +63,17 @@ export async function researchNicheNode(state: AgentState) {
     }
     `;
 
-    const analysisResponse = await model.invoke([
-        new SystemMessage("You are a helpful research assistant that outputs valid JSON."),
-        new HumanMessage(analysisPrompt)
-    ]);
+    const response = await model.generateContent({
+        contents: [{ role: 'user', parts: [{ text: "You are a helpful research assistant that outputs valid JSON.\n" + analysisPrompt }] }]
+    });
 
-    const analysisText = analysisResponse.content.toString().replace(/```json/g, '').replace(/```/g, '').trim();
+    const text = response.response.candidates?.[0]?.content?.parts?.[0]?.text?.replace(/```json/g, '').replace(/```/g, '').trim() || "{}";
 
     let findings;
     try {
-        findings = JSON.parse(analysisText);
+        findings = JSON.parse(text);
     } catch (e) {
-        console.error("Failed to parse JSON", analysisText);
+        console.error("Failed to parse JSON", text);
         findings = { pain_points: [], overall_opportunity_score: 0, summary: "Failed to parse analysis" };
     }
 

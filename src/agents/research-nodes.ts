@@ -101,8 +101,8 @@ export async function analyzeAndScoreNicheNode(state: ResearchState): Promise<Pa
   `;
 
     try {
-        const response = await model.invoke([new HumanMessage(prompt)]);
-        const content = response.content.toString();
+        const response = await model.generateContent(prompt);
+        const content = response.response.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
         // Robust JSON Extraction
         const start = content.indexOf('{');
         const end = content.lastIndexOf('}');

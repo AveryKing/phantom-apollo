@@ -1,14 +1,10 @@
 
-import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
+import { getGeminiModel } from "../tools/vertex-ai";
 import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 import { webSearch } from "../tools/web-search";
 import { supabase } from "../tools/supabase";
 
-const model = new ChatGoogleGenerativeAI({
-    model: "gemini-2.0-flash",
-    maxOutputTokens: 2048,
-    apiKey: process.env.GOOGLE_AI_API_KEY || process.env.GOOGLE_SEARCH_API_KEY
-});
+const model = getGeminiModel(false);
 
 import { AgentState } from "../types";
 
@@ -17,7 +13,7 @@ export async function prospectingNode(state: AgentState) {
 
     // 1. Generate search queries for people
     // strategy: site:linkedin.com/in/ "Target Role" "Niche"
-    const leadProblem = state.findings?.pain_points?.[0]?.problem || state.painPoints?.[0]?.problem || 'business growth';
+    const leadProblem = state.painPoints?.[0]?.problem || 'business growth';
 
     const queryPrompt = `
     Based on the niche "${state.niche}", who would be the decision maker to buy a solution for:
@@ -26,8 +22,8 @@ export async function prospectingNode(state: AgentState) {
     Return just the Job Title (e.g. "Agency Owner", "Head of Sales").
     `;
 
-    const roleResponse = await model.invoke([new HumanMessage(queryPrompt)]);
-    const targetRole = roleResponse.content.toString().trim();
+    const roleResponse = await model.generateContent(queryPrompt);
+    const targetRole = roleResponse.response.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "Decision Maker";
 
     const queries = [
         `site:linkedin.com/in/ "${targetRole}" "${state.niche}"`,
@@ -67,8 +63,10 @@ export async function prospectingNode(state: AgentState) {
     ]
     `;
 
-    const extractResponse = await model.invoke([new SystemMessage("You are a data extraction engine. Output valid JSON only."), new HumanMessage(extractionPrompt)]);
-    const extractText = extractResponse.content.toString().replace(/```json/g, '').replace(/```/g, '').trim();
+    const extractResponse = await model.generateContent({
+        contents: [{ role: 'user', parts: [{ text: extractionPrompt + "\nYou are a data extraction engine. Output valid JSON only." }] }]
+    });
+    const extractText = extractResponse.response.candidates?.[0]?.content?.parts?.[0]?.text?.replace(/```json/g, '').replace(/```/g, '').trim() || "[]";
 
     let leads = [];
     try {
