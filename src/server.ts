@@ -6,6 +6,7 @@ import dotenv from 'dotenv';
 import { strategistNode } from './agents/strategist';
 import { visionaryNode } from './agents/visionary';
 import { AgentState } from './types';
+import { runBeastMode } from './graph';
 
 dotenv.config();
 
@@ -30,22 +31,27 @@ app.post('/interactions',
 
         // Type 2: Application Command (Slash Command)
         if (type === 2) {
-            if (data.name === 'prospect') {
+            if (data.name === 'hunt' || data.name === 'prospect') {
                 // Return an "Deferred" response immediately so Discord doesn't timeout
                 res.send({
                     type: 5, // DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE
                 });
 
-                // TODO: Kick off the actual async processing here
-                // For now, we just log it.
-                console.log('👀 /prospect caught! Triggering agent...');
+                console.log(`👀 /${data.name} caught! Triggering Beast Mode...`);
 
-                // Since Cloud Run is stateless, if we just run async code here, 
-                // the CPU might be throttled after the response is sent.
-                // However, for recent Cloud Run generations (Gen 2), CPU boost is often enabled.
-                // Best practice is typically to hand off to a Task Queue, 
-                // but for "1337 Edition" ($0), we will try to run it in-process.
-                // We'll simulate the "Follow Up" message later via Webhook.
+                // Trigger the full pipeline asynchronously
+                // In a real serverless env, we'd push to Pub/Sub. 
+                // Here we run it detached.
+                (async () => {
+                    try {
+                        const result = await runBeastMode("Enterprise B2B SaaS for Logistics"); // Default niche for manual trigger
+                        console.log('✅ Async Beast Mode Complete');
+                        // TODO: Send follow-up message to Discord with results
+                    } catch (err) {
+                        console.error('❌ Async Beast Mode Failed:', err);
+                    }
+                })();
+
                 return;
             }
         }
