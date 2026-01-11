@@ -21,6 +21,11 @@ export async function outreachNode(state: AgentState): Promise<Partial<AgentStat
 
     console.log(`🤖 Processing outreach for ${leads.length} leads in niche: ${state.niche}`);
 
+    if (state.discordToken) {
+        const { sendDiscordFollowup } = require("../tools/discord");
+        await sendDiscordFollowup(state.discordToken, `✉️ **Outreach:** Drafting ${leads.length} personalized messages based on discovered pain points...`);
+    }
+
     const nicheContext = state.researchNotes || `Niche focusing on ${state.niche} pain points.`;
 
     for (const lead of leads) {

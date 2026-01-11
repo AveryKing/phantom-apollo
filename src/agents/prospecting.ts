@@ -13,6 +13,11 @@ export async function prospectingNode(state: AgentState) {
     // 1. Generate search queries for people
     const leadProblem = state.painPoints?.[0]?.problem || 'business growth';
 
+    if (state.discordToken) {
+        const { sendDiscordFollowup } = require("../tools/discord");
+        await sendDiscordFollowup(state.discordToken, `🎯 **Prospecting:** Identifying key decision makers for *${state.niche}*...`);
+    }
+
     const queryPrompt = `
     Based on the niche "${state.niche}", who would be the decision maker to buy a solution for:
     "${leadProblem}"?

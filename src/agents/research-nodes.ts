@@ -17,7 +17,14 @@ export async function searchForNichesNode(state: AgentState) {
     
     IMPORTANT: Return the queries inside [QUERY] tags. Example:
     [QUERY] "logistics software" complaints forum [/QUERY]
+    
+    DO NOT include any preamble, introduction, or conversational filler. Start directly with the queries.
   `;
+
+    if (state.discordToken) {
+        const { sendDiscordFollowup } = require("../tools/discord");
+        await sendDiscordFollowup(state.discordToken, `🔍 **Strategist:** Brainstorming targeted search queries for *${state.niche}*...`);
+    }
 
     try {
         const rawText = await generateGeminiText(prompt);
@@ -27,15 +34,20 @@ export async function searchForNichesNode(state: AgentState) {
         let queries: string[] = [];
 
         if (queryMatches) {
-            queries = queryMatches.map(m => m.replace(/\[\/?QUERY\]/g, '').trim());
+            queries = queryMatches.map(m => m.replace(/\[\/?QUERY\]/g, '').trim()).filter(q => q.length > 3);
         }
 
         // Fallback Strategy: If extraction failed or returned too few, try line-based extraction
         if (queries.length < 2) {
+            const forbiddenWords = ["okay", "here", "sure", "generate", "queries", "tailored", "find", "search", "analyzing", "provide", "based on"];
             const lines = rawText
                 .split('\n')
                 .map(q => q.replace(/^\d+\.\s*/, '').replace(/^"|"$/g, '').trim())
-                .filter(q => q.length > 5 && q.length < 150 && !q.toLowerCase().includes("here are"));
+                .filter(q => q.length > 5 && q.length < 150)
+                .filter(q => {
+                    const low = q.toLowerCase();
+                    return !forbiddenWords.some(word => low.startsWith(word)) && !low.includes("i can help");
+                });
             queries = [...new Set([...queries, ...lines])].slice(0, 3);
         }
 
@@ -50,6 +62,11 @@ export async function searchForNichesNode(state: AgentState) {
         }
 
         console.log(`📡 Final queries for "${state.niche}":`, queries);
+
+        if (state.discordToken) {
+            const { sendDiscordFollowup } = require("../tools/discord");
+            await sendDiscordFollowup(state.discordToken, `🔬 **Researching:** Executing ${queries.length} deep-dive searches...`);
+        }
 
         // 2. Execute Searches
         let allResults: string[] = [];
@@ -95,6 +112,12 @@ export async function searchForNichesNode(state: AgentState) {
  */
 export async function analyzeAndScoreNicheNode(state: AgentState) {
     console.log(`📊 [ResearchAgent] Analyzing results for: ${state.niche}`);
+
+    if (state.discordToken) {
+        const { sendDiscordFollowup } = require("../tools/discord");
+        const count = state.searchResults.length;
+        await sendDiscordFollowup(state.discordToken, `📊 **Analyzing:** Processing ${count} data points for market viability...`);
+    }
 
     const prompt = `
         Analyze these research findings for the niche: "${state.niche}"
