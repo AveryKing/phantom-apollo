@@ -11,14 +11,14 @@ export async function searchForNichesNode(state: AgentState) {
     console.log(`🔍 [ResearchAgent] Discovering pain points for niche: ${state.niche}`);
 
     const prompt = `
-    You are a business research analyst. I am researching the "${state.niche}" industry.
-    Generate 3 specific search queries that would help me find people complaining about their daily business operations, software frustrations, or missing features in this niche.
-    Focus on finding forums, Reddit threads, and industry-specific articles.
+    You are a business research analyst researching the "${state.niche}" industry.
+    Generate 3 very simple search queries to find people complaining about business problems or software frustrations.
+    Use terms like "sucks", "problem", "impossible to", "annoying".
     
     IMPORTANT: Return the queries inside [QUERY] tags. Example:
     [QUERY] "logistics software" complaints forum [/QUERY]
     
-    DO NOT include any preamble, introduction, or conversational filler. Start directly with the queries.
+    DO NOT include any preamble. Start directly with the queries.
   `;
 
     if (state.discordToken) {
