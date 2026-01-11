@@ -63,7 +63,7 @@ jobs:
              DISCORD_PUBLIC_KEY=${{ secrets.DISCORD_PUBLIC_KEY }}
              GOOGLE_SEARCH_API_KEY=${{ secrets.GOOGLE_SEARCH_API_KEY }}
              GOOGLE_CX=${{ secrets.GOOGLE_CX }}
-             SERVICE_URL=https://phantom-apollo-672134853536.us-central1.run.app
+             SERVICE_URL=${{ secrets.SERVICE_URL }}
              LANGFUSE_PUBLIC_KEY=${{ secrets.LANGFUSE_PUBLIC_KEY }}
              LANGFUSE_SECRET_KEY=${{ secrets.LANGFUSE_SECRET_KEY }}
              LANGFUSE_HOST=${{ secrets.LANGFUSE_HOST }}
