@@ -12,7 +12,9 @@ const app = express();
 const PORT = process.env.PORT || 8080;
 
 // --- 1. Discord Interactions Endpoint ---
+// Use raw body parser for signature verification - verifyKeyMiddleware needs raw body
 app.post('/interactions',
+    express.raw({ type: 'application/json' }),
     verifyKeyMiddleware(process.env.DISCORD_PUBLIC_KEY || 'mock-key'),
     async (req, res) => {
         const { type, data } = req.body;
