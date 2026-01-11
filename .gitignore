@@ -25,3 +25,14 @@ docs/
 
 # Scripts (Optional: Hide dev scripts if you want)
 # scripts/
+# Security
+gcp-key.json
+
+# Deprecated / Cleanup
+src/trigger/
+trigger.config.ts
+public/
+list_models.js
+test_search.js
+knowledge.json
+decisions/
