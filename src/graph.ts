@@ -58,7 +58,7 @@ export const graph = workflow.compile();
 /**
  * Beast Mode Runner
  */
-export async function runBeastMode(niche: string) {
+export async function runBeastMode(niche: string, discordToken?: string) {
     console.log(`🚀 [BEAST MODE] Starting full pipeline for: ${niche}`);
 
     const initialState: AgentState = {
@@ -69,14 +69,30 @@ export async function runBeastMode(niche: string) {
         scores: { marketSize: 0, competition: 0, willingnessToPay: 0, overall: 0 },
         researchNotes: "",
         status: 'researching',
-        leads: []
+        leads: [],
+        discordToken: discordToken || undefined
     };
+
+    if (discordToken) {
+        // Initial feedback
+        const { sendDiscordFollowup } = require("./tools/discord");
+        await sendDiscordFollowup(discordToken, `🚀 **Starting Hunt:** ${niche}\n\n*Agents Initialized...*`);
+    }
 
     const finalState = await graph.invoke(initialState as any) as unknown as AgentState;
 
     console.log(`🏁 [BEAST MODE] Pipeline finished for: ${niche}`);
     console.log(`📊 Status: ${finalState.status}`);
     console.log(`👥 Leads Processed: ${finalState.leads?.length || 0}`);
+
+    if (discordToken) {
+        const { sendDiscordFollowup } = require("./tools/discord");
+        const summary = `🏁 **Hunt Complete**
+**Status:** ${finalState.status.toUpperCase()}
+**Leads Found:** ${finalState.leads?.length || 0}
+**Verdict:** ${finalState.researchNotes || "N/A"}`;
+        await sendDiscordFollowup(discordToken, summary);
+    }
 
     return finalState;
 }

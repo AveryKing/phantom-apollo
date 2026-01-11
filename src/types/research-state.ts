@@ -40,6 +40,11 @@ export interface ResearchState {
 
     /** Extra structured context from analysis */
     findings?: any;
+
+    /** Discord Interaction Token for real-time updates */
+    discordToken?: string;
+    /** Discord Application ID */
+    applicationId?: string;
 }
 
 /**
@@ -54,5 +59,7 @@ export const researchStateChannels = {
     researchNotes: null,
     status: null,
     error: null,
-    findings: null
+    findings: null,
+    discordToken: null,
+    applicationId: null
 };

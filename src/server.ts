@@ -44,9 +44,9 @@ app.post('/interactions',
                 // Here we run it detached.
                 (async () => {
                     try {
-                        const result = await runBeastMode("Enterprise B2B SaaS for Logistics"); // Default niche for manual trigger
+                        // Pass the Interaction Token (NOT the bot token) for follow-up
+                        const result = await runBeastMode("Enterprise B2B SaaS for Logistics", data.token); // Default niche for manual trigger
                         console.log('✅ Async Beast Mode Complete');
-                        // TODO: Send follow-up message to Discord with results
                     } catch (err) {
                         console.error('❌ Async Beast Mode Failed:', err);
                     }
