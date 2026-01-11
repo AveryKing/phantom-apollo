@@ -69,7 +69,12 @@ export async function googleSearch(query: string, numResults: number = 10): Prom
  * Used for legacy support during migration.
  */
 export async function webSearch(query: string): Promise<string> {
-    const results = await googleSearch(query);
-    if (results.length === 0) return "No results found.";
-    return results.map(r => `Title: ${r.title}\nURL: ${r.link}\nSnippet: ${r.snippet}`).join("\n\n");
+    try {
+        const results = await googleSearch(query);
+        if (results.length === 0) return "No results found.";
+        return results.map(r => `Title: ${r.title}\nURL: ${r.link}\nSnippet: ${r.snippet}`).join("\n\n");
+    } catch (error) {
+        console.error('❌ [WebSearch] Error:', error);
+        return "Search failed. Please try again later.";
+    }
 }

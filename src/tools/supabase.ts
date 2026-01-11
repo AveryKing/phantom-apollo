@@ -20,13 +20,18 @@ export const supabase: SupabaseClient = createClient(
  * Generic helper to select data safely
  */
 export async function safeSelect<T>(table: string, columns: string = '*'): Promise<T[] | null> {
-    if (!supabaseUrl) return null;
-    const { data, error } = await supabase.from(table).select(columns);
-    if (error) {
-        console.error(`Error selecting from ${table}:`, error);
+    try {
+        if (!supabaseUrl) return null;
+        const { data, error } = await supabase.from(table).select(columns);
+        if (error) {
+            console.error(`Error selecting from ${table}:`, error);
+            return null;
+        }
+        return data as T[];
+    } catch (error) {
+        console.error(`❌ [Supabase] Unexpected error in safeSelect:`, error);
         return null;
     }
-    return data as T[];
 }
 
 /**
@@ -39,18 +44,22 @@ export async function logAgentAction(
     errorMessage?: string,
     durationSeconds?: number
 ) {
-    if (!supabaseUrl) return;
+    try {
+        if (!supabaseUrl) return;
 
-    const { error } = await supabase.from('agent_logs').insert({
-        agent_name: agentName,
-        status: status,
-        results_summary: summary,
-        error_message: errorMessage,
-        execution_time_seconds: durationSeconds,
-    });
+        const { error } = await supabase.from('agent_logs').insert({
+            agent_name: agentName,
+            status: status,
+            results_summary: summary,
+            error_message: errorMessage,
+            execution_time_seconds: durationSeconds,
+        });
 
-    if (error) {
-        console.error('Failed to write agent log:', error);
+        if (error) {
+            console.error('Failed to write agent log:', error);
+        }
+    } catch (error) {
+        console.error('❌ [Supabase] Unexpected error in logAgentAction:', error);
     }
 }
 
@@ -58,13 +67,18 @@ export async function logAgentAction(
  * Generic helper to insert data safely
  */
 export async function insertRecord(table: string, record: object) {
-    if (!supabaseUrl) {
-        console.warn(`[Mock DB] Would insert into ${table}:`, record);
-        return;
-    }
-    const { error } = await supabase.from(table).insert(record);
-    if (error) {
-        console.error(`Error inserting into ${table}:`, error);
+    try {
+        if (!supabaseUrl) {
+            console.warn(`[Mock DB] Would insert into ${table}:`, record);
+            return;
+        }
+        const { error } = await supabase.from(table).insert(record);
+        if (error) {
+            console.error(`Error inserting into ${table}:`, error);
+            throw error;
+        }
+    } catch (error) {
+        console.error(`❌ [Supabase] Unexpected error in insertRecord:`, error);
         throw error;
     }
 }

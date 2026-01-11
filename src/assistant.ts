@@ -80,60 +80,74 @@ function isContinuationMessage(messages: BaseMessage[]): boolean {
  * Extracts the niche and signals the start of the beast mode subgraph.
  */
 async function prepareHuntNode(state: AssistantState, config?: RunnableConfig): Promise<Partial<AssistantState>> {
-  const { niche } = extractHuntCommand(state.messages);
-  const nicheToUse = niche || "Enterprise B2B SaaS for Logistics";
+  try {
+    const { niche } = extractHuntCommand(state.messages);
+    const nicheToUse = niche || "Enterprise B2B SaaS for Logistics";
 
-  console.log("");
-  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-  console.log(`🎯 [HUNT] Initiating search for: ${nicheToUse}`);
-  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    console.log("");
+    console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    console.log(`🎯 [HUNT] Initiating search for: ${nicheToUse}`);
+    console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
-  // Add tracing metadata for the hunt
-  const tracedConfig = withLangfuseTracing(config, "prepare-hunt", {
-    niche: nicheToUse,
-    hunt_initiated: true,
-  });
+    // Add tracing metadata for the hunt
+    const tracedConfig = withLangfuseTracing(config, "prepare-hunt", {
+      niche: nicheToUse,
+      hunt_initiated: true,
+    });
 
-  // We return the niche so the Child Graph (BeastMode) can read it from the state
-  return {
-    niche: nicheToUse,
-    messages: [new AIMessage(`🚀 **Hunt Initiated!**\n\nStarting comprehensive research and prospecting for **${nicheToUse}**.\n\nPlease wait while I analyze the market and find leads...`)]
-  };
+    // We return the niche so the Child Graph (BeastMode) can read it from the state
+    return {
+      niche: nicheToUse,
+      messages: [new AIMessage(`🚀 **Hunt Initiated!**\n\nStarting comprehensive research and prospecting for **${nicheToUse}**.\n\nPlease wait while I analyze the market and find leads...`)]
+    };
+  } catch (error) {
+    console.error("❌ [ERROR] Failed to prepare hunt:", error);
+    return {
+      messages: [new AIMessage("Sorry, I encountered an error while preparing the hunt. Please try again.")]
+    };
+  }
 }
 
 /**
  * Simple chat assistant using Vertex AI Gemini
  */
 async function chatNode(state: AssistantState, config?: RunnableConfig): Promise<Partial<AssistantState>> {
-  const messages = state.messages;
-  const lastMessage = messages[messages.length - 1];
-  const userInput = normalizeContent(lastMessage.content);
+  try {
+    const messages = state.messages;
+    const lastMessage = messages[messages.length - 1];
+    const userInput = normalizeContent(lastMessage.content);
 
-  console.log("");
-  console.log("💬 [CHAT] User Message:", userInput);
+    console.log("");
+    console.log("💬 [CHAT] User Message:", userInput);
 
-  // Initialize model
-  const model = new ChatVertexAI({
-    model: "gemini-2.0-flash-exp",
-    temperature: 0.7,
-    maxOutputTokens: 2048,
-  });
+    // Initialize model
+    const model = new ChatVertexAI({
+      model: "gemini-2.0-flash-exp",
+      temperature: 0.7,
+      maxOutputTokens: 2048,
+    });
 
-  // Add Langfuse tracing to the config
-  const tracedConfig = withLangfuseTracing(config, "assistant-chat", {
-    user_input: userInput.substring(0, 100), // First 100 chars
-  });
+    // Add Langfuse tracing to the config
+    const tracedConfig = withLangfuseTracing(config, "assistant-chat", {
+      user_input: userInput.substring(0, 100), // First 100 chars
+    });
 
-  console.log("💭 [THOUGHT] Thinking of a response...");
-  const response = await model.invoke([
-    new SystemMessage("You are a business assistant. If user says 'hunt', I will handle it. Otherwise, answer helpfully."),
-    ...messages
-  ], tracedConfig);
+    console.log("💭 [THOUGHT] Thinking of a response...");
+    const response = await model.invoke([
+      new SystemMessage("You are a business assistant. If user says 'hunt', I will handle it. Otherwise, answer helpfully."),
+      ...messages
+    ], tracedConfig);
 
-  console.log("🤖 [RESPONSE]:", normalizeContent(response.content));
-  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    console.log("🤖 [RESPONSE]:", normalizeContent(response.content));
+    console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
-  return { messages: [response] };
+    return { messages: [response] };
+  } catch (error) {
+    console.error("❌ [ERROR] Chat node failed:", error);
+    return {
+      messages: [new AIMessage("I apologize, but I encountered an error processing your message. Please try again.")]
+    };
+  }
 }
 
 /**
@@ -147,8 +161,8 @@ function createAssistantGraph() {
           const combined = [...(x || []), ...(y || [])];
           const seen = new Set();
           return combined.filter(m => {
-            const id = m.id || (m as any).lc_id?.[m.lc_id.length - 1]; // Fallback for various ID formats
-            if (!id) return true; // Keep messages without IDs
+            const id = m.id;
+            if (!id) return true;
             if (seen.has(id)) return false;
             seen.add(id);
             return true;
@@ -167,24 +181,13 @@ function createAssistantGraph() {
     .addNode("beast_mode", beastGraph) // Mount the Subgraph!
 
     .addConditionalEdges(START, (state: AssistantState) => {
-      console.log(`🔍 [ROUTING] Evaluating state. Messages: ${state.messages.length}, Niche: ${state.niche}`);
+      const { isHunt } = extractHuntCommand(state.messages);
+      if (isHunt) return "prepare_hunt";
 
-      const { isHunt, niche } = extractHuntCommand(state.messages);
-      const isApproval = isContinuationMessage(state.messages);
-
-      console.log(`🔍 [ROUTING] isHunt: ${isHunt}, isApproval: ${isApproval}`);
-
-      if (isHunt) {
-        console.log(`↪️ [ROUTING] Path: prepare_hunt (Niche: ${niche})`);
-        return "prepare_hunt";
-      }
-
-      if (state.niche && isApproval) {
-        console.log(`↪️ [ROUTING] Path: beast_mode (Approval detected for ${state.niche})`);
+      if (state.niche && isContinuationMessage(state.messages)) {
         return "beast_mode";
       }
 
-      console.log(`↪️ [ROUTING] Path: chat`);
       return "chat";
     })
     .addEdge("prepare_hunt", "beast_mode")

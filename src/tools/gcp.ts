@@ -34,19 +34,24 @@ export async function getSecret(name: string): Promise<string | undefined> {
  * Returns the public URL
  */
 export async function uploadScreenshot(buffer: Buffer | string, filename: string): Promise<string> {
-    const bucketName = process.env.GCS_BUCKET || `${projectId}-screenshots`;
-    const bucket = storage.bucket(bucketName);
-    const file = bucket.file(`screenshots/${filename}`);
+    try {
+        const bucketName = process.env.GCS_BUCKET || `${projectId}-screenshots`;
+        const bucket = storage.bucket(bucketName);
+        const file = bucket.file(`screenshots/${filename}`);
 
-    console.log(`📡 [GCS] Uploading screenshot to ${bucketName}...`);
+        console.log(`📡 [GCS] Uploading screenshot to ${bucketName}...`);
 
-    const imageBuffer = typeof buffer === 'string' ? Buffer.from(buffer, 'base64') : buffer;
+        const imageBuffer = typeof buffer === 'string' ? Buffer.from(buffer, 'base64') : buffer;
 
-    await file.save(imageBuffer, {
-        metadata: { contentType: 'image/jpeg' },
-        public: true,
-    });
+        await file.save(imageBuffer, {
+            metadata: { contentType: 'image/jpeg' },
+            public: true,
+        });
 
-    const publicUrl = `https://storage.googleapis.com/${bucketName}/screenshots/${filename}`;
-    return publicUrl;
+        const publicUrl = `https://storage.googleapis.com/${bucketName}/screenshots/${filename}`;
+        return publicUrl;
+    } catch (error) {
+        console.error('❌ [GCS] Failed to upload screenshot:', error);
+        throw error;
+    }
 }

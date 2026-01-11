@@ -1,7 +1,32 @@
 
-import { VertexAI, HarmCategory, HarmBlockThreshold } from '@google-cloud/vertexai';
+import { VertexAI, HarmCategory, HarmBlockThreshold, GenerateContentRequest, Tool } from '@google-cloud/vertexai';
 import { VertexAIEmbeddings } from "@langchain/google-vertexai";
 import dotenv from 'dotenv';
+
+// Type definitions for better type safety
+export interface GeminiModelOptions {
+    temperature?: number;
+    maxOutputTokens?: number;
+    responseMimeType?: string;
+    responseSchema?: Record<string, unknown>;
+}
+
+export interface GeminiModelConfig {
+    model: string;
+    safetySettings: Array<{
+        category: HarmCategory;
+        threshold: HarmBlockThreshold;
+    }>;
+    generationConfig: {
+        temperature: number;
+        maxOutputTokens: number;
+        responseMimeType?: string;
+        responseSchema?: Record<string, unknown>;
+    };
+    tools?: Tool[];
+}
+
+export type GeminiContent = string | GenerateContentRequest;
 
 dotenv.config();
 
@@ -25,12 +50,12 @@ export const vertexAI = projectId ? new VertexAI({
  * @param enableGrounding - Enable Google Search grounding to reduce hallucinations
  * @param options - Additional generation config options
  */
-export function getGeminiModel(enableGrounding: boolean = false, options: any = {}) {
+export function getGeminiModel(enableGrounding: boolean = false, options: GeminiModelOptions = {}) {
     if (!vertexAI) {
         throw new Error('Vertex AI not initialized. Set GOOGLE_CLOUD_PROJECT in .env');
     }
 
-    const modelConfig: any = {
+    const modelConfig: GeminiModelConfig = {
         model: 'gemini-2.0-flash-001', // Standard 2.0 Flash model
         safetySettings: [
             {
@@ -49,8 +74,8 @@ export function getGeminiModel(enableGrounding: boolean = false, options: any = 
     // Add grounding if requested
     if (enableGrounding) {
         modelConfig.tools = [{
-            googleSearch: {} // Fixed: Use googleSearch instead of googleSearchRetrieval
-        }];
+            googleSearch: {} // Google Search grounding tool
+        } as Tool];
     }
 
     return vertexAI.getGenerativeModel(modelConfig);
@@ -59,7 +84,7 @@ export function getGeminiModel(enableGrounding: boolean = false, options: any = 
 /**
  * Robust wrapper for generating text with Gemini, including 429 retries
  */
-export async function generateGeminiText(promptOrContent: any, enableGrounding: boolean = false): Promise<string> {
+export async function generateGeminiText(promptOrContent: GeminiContent, enableGrounding: boolean = false): Promise<string> {
     console.log(`🤖 [Gemini] Calling Text Generation (Grounding: ${enableGrounding})...`);
     const model = getGeminiModel(enableGrounding);
     return retryOnRateLimit(() => model.generateContent(promptOrContent).then(res => res.response.candidates?.[0]?.content?.parts?.[0]?.text || ""));
@@ -68,7 +93,7 @@ export async function generateGeminiText(promptOrContent: any, enableGrounding: 
 /**
  * Robust wrapper for generating structured JSON with Gemini
  */
-export async function generateGeminiStructured<T>(promptOrContent: any, schema: any, enableGrounding: boolean = false): Promise<T> {
+export async function generateGeminiStructured<T>(promptOrContent: GeminiContent, schema: Record<string, unknown>, enableGrounding: boolean = false): Promise<T> {
     console.log(`🤖 [Gemini] Calling Structured Generation (Grounding: ${enableGrounding})...`);
     const model = getGeminiModel(enableGrounding, {
         responseMimeType: 'application/json',

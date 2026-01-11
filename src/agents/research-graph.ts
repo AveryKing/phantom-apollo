@@ -24,17 +24,22 @@ export const researchGraph = workflow.compile();
  * Standalone runner for the Research Agent
  */
 export async function runResearch(niche: string) {
-    const initialState: ResearchState = {
-        niche,
-        queries: [],
-        searchResults: [],
-        painPoints: [],
-        scores: { marketSize: 0, competition: 0, willingnessToPay: 0, overall: 0 },
-        researchNotes: "",
-        status: 'researching'
-    };
+    try {
+        const initialState: ResearchState = {
+            niche,
+            queries: [],
+            searchResults: [],
+            painPoints: [],
+            scores: { marketSize: 0, competition: 0, willingnessToPay: 0, overall: 0 },
+            researchNotes: "",
+            status: 'researching'
+        };
 
-    console.log(`🚀 Launching Research Agent for: ${niche}`);
-    const finalState = await researchGraph.invoke(initialState as any);
-    return finalState;
+        console.log(`🚀 Launching Research Agent for: ${niche}`);
+        const finalState = await researchGraph.invoke(initialState as any);
+        return finalState;
+    } catch (error) {
+        console.error('❌ [Research] Error running research:', error);
+        throw error;
+    }
 }

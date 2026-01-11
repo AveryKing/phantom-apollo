@@ -1,113 +1,129 @@
 import { generateGeminiStructured } from "../tools/vertex-ai";
-import { HumanMessage, SystemMessage, AIMessage } from "@langchain/core/messages";
-import { OutreachState } from "../types/outreach-types";
+import { AIMessage } from "@langchain/core/messages";
 import { AgentState } from "../types";
-import { insertRecord } from "../tools/supabase";
+import { supabase } from "../tools/supabase";
 import { RunnableConfig } from "@langchain/core/runnables";
 
 /**
- * Main Outreach Node for LangGraph.
- * Iterates through discovered leads and generates research-backed drafts.
+ * Node D: The Closer
+ * Generates personalized outreach emails based on research, lead data, and visual analysis.
  */
-export async function outreachNode(state: AgentState, config?: RunnableConfig): Promise<Partial<AgentState>> {
+export async function closerNode(state: AgentState, config?: RunnableConfig) {
     const leads = state.leads || [];
+
     if (leads.length === 0) {
-        console.warn("⚠️ No leads found for outreach.");
-        return state;
+        console.warn("⚠️ [Closer] No leads found to draft outreach for.");
+        return { status: 'complete' };
     }
 
     console.log("");
     console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    console.log(`✉️ [OUTREACH] Node: Message Drafting`);
-    console.log(`🎯 [TARGET] Niche: ${state.niche}`);
+    console.log(`✉️ [CLOSER] Node: Personalized Outreach Drafting`);
+    console.log(`🎯 [TARGET] Drafting emails for ${leads.length} leads...`);
     console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    console.log(`💭 [THOUGHT] Processing ${leads.length} leads to generate personalized research-backed outreach...`);
 
-    const nicheContext = state.researchNotes || `Niche focusing on ${state.niche} pain points.`;
+    if (state.discordToken) {
+        const { sendDiscordFollowup } = require("../tools/discord");
+        await sendDiscordFollowup(state.discordToken, `✉️ **Closer:** Drafting personalized outreach for ${leads.length} prospects...`);
+    }
+
+    const updatedLeads = [];
+    const painPointsSummary = state.painPoints?.slice(0, 3).map(p => p.problem).join(", ") || "business growth challenges";
+
+    // Draft schema for structured output
+    const draftSchema = {
+        type: "OBJECT",
+        properties: {
+            subject: { type: "STRING", description: "Email subject line" },
+            body: { type: "STRING", description: "Email body content" },
+            cta: { type: "STRING", description: "Call to action" }
+        },
+        required: ["subject", "body", "cta"]
+    };
 
     for (const lead of leads) {
         try {
-            console.log(`📝 Drafting for: ${lead.name || 'Unknown'} @ ${lead.company || 'Unknown'}`);
+            console.log(`✍️ [Closer] Drafting for: ${lead.name || lead.company}`);
 
-            // 1. Prepare Drafting State
-            const outreachState: OutreachState = {
-                leadId: lead.id || 'unknown',
+            const visualContext = lead.visual_analysis || "No visual analysis available";
+            const vibeScore = lead.visual_vibe_score || 5;
+
+            const draftingPrompt = `
+You are a world-class B2B sales copywriter specializing in cold outreach.
+
+CONTEXT:
+- Niche: ${state.niche}
+- Top Pain Points in this market: ${painPointsSummary}
+- Lead: ${lead.name || "Decision Maker"} at ${lead.company}
+- Role: ${lead.role || "Leadership"}
+- Visual Analysis: ${visualContext}
+- Modernity Score: ${vibeScore}/10
+
+TASK:
+Write a personalized cold email that:
+1. References their company's digital presence (use the visual analysis subtly)
+2. Connects to ONE specific pain point from the market research
+3. Offers a clear, low-friction next step (15-min call)
+4. Keeps it under 100 words
+5. Sounds human, not like AI
+
+TONE: Professional but conversational. No buzzwords. No "I hope this email finds you well."
+
+Return JSON with:
+{
+    "subject": "string (max 60 chars)",
+    "body": "string (the email body)",
+    "cta": "string (the specific ask)"
+}
+            `;
+
+            const draft = await generateGeminiStructured<any>(draftingPrompt, draftSchema, false);
+
+            console.log(`✅ [Closer] Draft created: "${draft.subject}"`);
+
+            const updatedLead = {
+                ...lead,
+                email_draft: JSON.stringify(draft),
                 context: {
-                    name: lead.name || 'there',
-                    company: lead.company || 'your company',
-                    role: lead.role || "Decision Maker",
-                    recent_activity: lead.linkedin_url || lead.url
-                },
-                channel: 'email',
-                nicheContext,
-                status: 'analyzing'
+                    ...(lead.context || {}),
+                    draft_subject: draft.subject,
+                    draft_body: draft.body,
+                    draft_cta: draft.cta
+                }
             };
 
-            // 2. Generate the Draft
-            const result = await draftMessageLogic(outreachState);
+            // Update in Database
+            if (lead.id) {
+                await supabase.from('leads').update({
+                    email_draft: JSON.stringify(draft),
+                    context: updatedLead.context
+                }).eq('id', lead.id);
 
-            if (result.draft) {
-                // 3. Save to Supabase 'messages' table
-                await insertRecord('messages', {
+                // Also save to messages table for tracking
+                await supabase.from('messages').insert({
                     lead_id: lead.id,
-                    channel: outreachState.channel,
-                    subject: result.draft.subject || `Quick question for ${lead.company}`,
-                    content: result.draft.content,
+                    channel: 'email',
+                    subject: draft.subject,
+                    content: draft.body,
                     status: 'draft'
                 });
             }
-        } catch (error) {
-            console.error(`❌ Failed to draft for lead ${lead.id}:`, error);
+
+            updatedLeads.push(updatedLead);
+
+        } catch (err) {
+            console.error(`❌ [Closer] Failed to draft for ${lead.company}:`, err);
+            updatedLeads.push(lead);
         }
     }
 
-    return {
-        ...state,
-        messages: [new AIMessage(`✉️ Outreach complete. Drafted ${leads.length} personalized messages based on the identified pain points.`)]
-    };
-}
-
-/**
- * Core drafting logic using Gemini.
- */
-async function draftMessageLogic(state: OutreachState): Promise<Partial<OutreachState>> {
-    console.log(`🤖 [Gemini] Calling Structured Generation for Outreach...`);
-
-    const prompt = `
-        You are a world-class sales copywriter.
-        Lead: ${state.context.name}
-        Role: ${state.context.role}
-        Company: ${state.context.company}
-        Search Snippet: ${state.context.recent_activity || 'None'}
-        Niche Context/Pain Points: ${state.nicheContext}
-        Channel: ${state.channel}
-
-        Task: Draft a hyper-personalized outreach message.
-        - Reference their role/company or the specific snippet provided.
-        - Address a pain point from the niche context.
-        - Be concise: Under 100 words.
-        - Tone: Professional, helpful, curious. NOT salesy.
-        - Call to Action: A low-friction question.
-    `;
-
-    const schema = {
-        type: "OBJECT",
-        properties: {
-            subject: { type: "STRING" },
-            content: { type: "STRING" }
-        },
-        required: ["subject", "content"]
-    };
-
-    try {
-        const draft = await generateGeminiStructured<any>(prompt, schema);
-
-        return {
-            draft,
-            status: 'completed'
-        };
-    } catch (error) {
-        console.error("Gemini Drafting Error:", error);
-        throw error;
+    if (state.discordToken) {
+        const { sendDiscordFollowup } = require("../tools/discord");
+        await sendDiscordFollowup(state.discordToken, `✅ **Drafting Complete:** ${updatedLeads.length} personalized emails ready for review.`);
     }
+
+    return {
+        leads: updatedLeads,
+        messages: [new AIMessage(`✉️ Outreach drafting complete. I've created ${updatedLeads.length} personalized emails based on visual analysis and market research.`)]
+    };
 }

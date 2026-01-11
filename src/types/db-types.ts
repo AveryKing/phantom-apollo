@@ -8,6 +8,27 @@ export interface Niche {
     created_at?: string;
 }
 
+export interface PainPoint {
+    description: string;
+    severity?: 'low' | 'medium' | 'high';
+    category?: string;
+}
+
+export interface EvaluationScore {
+    hallucination_check?: number; // 0-1 score
+    relevance?: number; // 0-1 score
+    professionalism?: number; // 0-1 score
+    overall?: number; // 0-1 score
+    feedback?: string;
+}
+
+export interface LeadContext {
+    source?: string;
+    search_query?: string;
+    discovery_date?: string;
+    metadata?: Record<string, unknown>;
+}
+
 export interface Lead {
     id: string;
     niche_id: string;
@@ -28,10 +49,10 @@ export interface Lead {
     visual_analysis?: string;
 
     // Outreach Data
-    pain_points?: any; // JSONB
+    pain_points?: PainPoint[]; // JSONB array
     email_draft?: string;
-    evaluation_score?: any; // JSONB
-    context?: any;
+    evaluation_score?: EvaluationScore; // JSONB object
+    context?: LeadContext; // JSONB object
     score?: number;
     stage?: string;
 

@@ -7,42 +7,21 @@ import { withLangfuseTracing } from "../lib/tracing";
 import { RunnableConfig } from "@langchain/core/runnables";
 
 /**
- * Node 1: Niche Discovery (Search)
- * Responsible for generating search queries and fetching raw data.
+ * Node 1a: Research Planning
+ * Generates the strategic search plan.
  */
-export async function searchForNichesNode(state: AgentState, config?: RunnableConfig) {
-    console.log("");
-    console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    console.log(`🔬 [RESEARCH] Node: Niche Discovery`);
-    console.log(`🎯 [TARGET] Niche: ${state.niche}`);
-    console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    console.log("💭 [THOUGHT] Creating strategic search queries to find real business pain points...");
+export async function researchPlanNode(state: AgentState, config?: RunnableConfig) {
+    console.log("💭 [THOUGHT] Creating strategic search queries...");
 
     const prompt = `
     You are a business research analyst researching the "${state.niche}" industry.
     Generate 3 simple, effective search queries to find business problems or software frustrations.
     
-    GUIDELINES:
-    - Use broader terms: "scheduling problems", "billing frustration", "appointment issues".
-    - AVOID excessive quotes around every word. Only quote specific phrases if needed.
-    - Focus on finding discussions on Reddit, Quora, or niche forums.
-    
-    IMPORTANT: Return the queries inside [QUERY] tags. Example:
-    [QUERY] logistics software complaints forum [/QUERY]
-    
-    DO NOT include any preamble. Start directly with the queries.
+    IMPORTANT: Return the queries inside [QUERY] tags.
   `;
 
-    if (state.discordToken) {
-        const { sendDiscordFollowup } = require("../tools/discord");
-        await sendDiscordFollowup(state.discordToken, `🔍 **Strategist:** Brainstorming targeted search queries for *${state.niche}*...`);
-    }
-
     try {
-        console.log("📡 [RESEARCH] Fetching grounded insights for initial discovery...");
-        const rawText = await generateGeminiText(prompt, true); // GROUNDING ENABLED!
-
-        // Robust Extraction using [QUERY] tags or line-by-line fallback
+        const rawText = await generateGeminiText(prompt, true);
         const queryMatches = rawText.match(/\[QUERY\](.*?)\[\/QUERY\]/gs);
         let queries: string[] = [];
 
@@ -50,82 +29,47 @@ export async function searchForNichesNode(state: AgentState, config?: RunnableCo
             queries = queryMatches.map(m => m.replace(/\[\/?QUERY\]/g, '').trim()).filter(q => q.length > 3);
         }
 
-        // Clean any remaining tags if they leaked into lines
-        queries = queries.map(q => q.replace(/\[\/?QUERY\]/g, '').trim());
-
-        // Fallback Strategy: If extraction failed or returned too few, try line-based extraction
-        if (queries.length < 2) {
-            const forbiddenWords = ["okay", "here", "sure", "generate", "queries", "tailored", "find", "search", "analyzing", "provide", "based on"];
-            const lines = rawText
-                .split('\n')
-                .map(q => q.replace(/^\d+\.\s*/, '').replace(/^"|"$/g, '').trim())
-                .filter(q => q.length > 5 && q.length < 150)
-                .filter(q => {
-                    const low = q.toLowerCase();
-                    return !forbiddenWords.some(word => low.startsWith(word)) && !low.includes("i can help");
-                });
-            queries = [...new Set([...queries, ...lines])].slice(0, 3);
-        }
-
-        // Secondary Fallback: If still empty, use Seed Queries based on niche
         if (queries.length === 0) {
-            console.warn(`⚠️ LLM failed to generate queries for "${state.niche}". Using seed fallbacks.`);
-            queries = [
-                `"${state.niche}" problems frustrations forum`,
-                `"${state.niche}" software complaints reddit`,
-                `"${state.niche}" business operations challenges`
-            ];
-        }
-
-        console.log(`📡 Final queries for "${state.niche}":`, queries);
-
-        if (state.discordToken) {
-            const { sendDiscordFollowup } = require("../tools/discord");
-            await sendDiscordFollowup(state.discordToken, `🔬 **Researching:** Executing ${queries.length} deep-dive searches...`);
-        }
-
-        // 2. Execute Searches (Parallelized)
-        let allResults: string[] = [];
-
-        const searchPromises = queries.map(async (query) => {
-            try {
-                const results = await googleSearch(query, 5);
-                if (results.length > 0) {
-                    const formattedResults = results.map((r: GoogleSearchResult) => `Title: ${r.title}\nLink: ${r.link}\nSnippet: ${r.snippet}`).join('\n\n');
-                    return `### RESULTS FOR: ${query}\n${formattedResults}`;
-                }
-            } catch (err) {
-                console.error(`❌ Search failed for query "${query}":`, err);
-            }
-            return null;
-        });
-
-        const results = await Promise.all(searchPromises);
-        allResults = results.filter((r): r is string => r !== null);
-
-        if (allResults.length === 0) {
-            console.warn(`🛑 No web results found for "${state.niche}". Using internal knowledge fallback.`);
-            return {
-                queries: queries,
-                searchResults: ["No external results found. Use general industry knowledge for analysis."],
-                status: 'analyzing'
-            };
+            queries = [`"${state.niche}" problems frustrations forum`, `"${state.niche}" software complaints reddit`];
         }
 
         return {
             queries: queries,
-            searchResults: allResults,
-            status: 'analyzing',
-            messages: [new AIMessage(`🔍 Research complete. I found ${allResults.length} relevant sources for "${state.niche}". Now analyzing for pain points...`)]
+            messages: [new AIMessage(`🎯 **Target Acquired:** Initiating deep-dive research into **${state.niche}**.\n\nI've generated ${queries.length} strategic search vectors to identify high-value pain points.`)]
         };
-
     } catch (error: any) {
-        console.error("❌ Research node failed:", error);
-        return {
-            status: 'failed',
-            error: error.message || "Unknown error in search node"
-        };
+        return { status: 'failed', error: error.message };
     }
+}
+
+/**
+ * Node 1b: Research Execution
+ * Executes the searches and gathers raw data.
+ */
+export async function researchExecuteNode(state: AgentState, config?: RunnableConfig) {
+    console.log(`📡 [RESEARCH] Executing ${state.queries.length} searches...`);
+
+    const searchPromises = state.queries.map(async (query) => {
+        try {
+            const results = await googleSearch(query, 5);
+            if (results.length > 0) {
+                const formattedResults = results.map((r: GoogleSearchResult) => `Title: ${r.title}\nLink: ${r.link}\nSnippet: ${r.snippet}`).join('\n\n');
+                return `### RESULTS FOR: ${query}\n${formattedResults}`;
+            }
+        } catch (err) {
+            console.error(`❌ Search failed for query "${query}":`, err);
+        }
+        return null;
+    });
+
+    const results = await Promise.all(searchPromises);
+    const allResults = results.filter((r): r is string => r !== null);
+
+    return {
+        searchResults: allResults,
+        status: 'analyzing' as const,
+        messages: [new AIMessage(`🔍 **Web Search Complete**: Analyzed ${allResults.length} data sources across the web. Mapping industry friction points...`)]
+    };
 }
 
 /**

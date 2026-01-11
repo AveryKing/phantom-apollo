@@ -4,9 +4,10 @@ import { BaseMessage } from "@langchain/core/messages";
 import { AgentState } from "./types";
 import { Lead } from "./types/db-types";
 import { researchStateChannels } from "./types/research-state";
-import { searchForNichesNode, analyzeAndScoreNicheNode } from "./agents/research-nodes";
-import { prospectingNode } from "./agents/prospecting";
+import { researchPlanNode, researchExecuteNode, analyzeAndScoreNicheNode } from "./agents/research-nodes";
+import { prospectingPlanNode, prospectingExecuteNode } from "./agents/prospecting";
 import { visionNode } from "./agents/vision-agent";
+import { closerNode } from "./agents/outreach";
 
 /**
  * Master Business Development Graph (Discovery Phase)
@@ -15,7 +16,10 @@ import { visionNode } from "./agents/vision-agent";
  * 1. Research (Discovery)
  * 2. Analyze (Scoring)
  * 3. Conditional: Proceed to Prospecting only if Niche is Validated
- * 4. Prospecting (Lead Gen + Queue Tasks)
+ * 4. Prospecting (Lead Gen + Queue Tasks for Async Processing)
+ * 
+ * Note: Vision analysis and outreach drafting happen asynchronously via Cloud Tasks.
+ * See src/processors/lead-processor.ts for the async processing pipeline.
  */
 
 // Channels for State Sync
@@ -32,7 +36,7 @@ const masterChannels = {
             const combined = [...(x || []), ...(y || [])];
             const seen = new Set();
             return combined.filter(m => {
-                const id = m.id || (m as any).lc_id?.[m.lc_id.length - 1];
+                const id = m.id;
                 if (!id) return true;
                 if (seen.has(id)) return false;
                 seen.add(id);
@@ -47,7 +51,8 @@ const workflow = new StateGraph<AgentState>({
     channels: masterChannels as any
 })
     // Add Nodes
-    .addNode("research_search", searchForNichesNode as any)
+    .addNode("research_plan", researchPlanNode as any)
+    .addNode("research_execute", researchExecuteNode as any)
     .addNode("research_analyze", analyzeAndScoreNicheNode as any)
     .addNode("human_approval", async (state: AgentState) => {
         console.log("");
@@ -66,12 +71,15 @@ const workflow = new StateGraph<AgentState>({
         console.log(`✅ [HITL] Received approval: ${userApproval}`);
         return { approved: !!userApproval };
     })
-    .addNode("prospecting", prospectingNode as any)
+    .addNode("prospecting_plan", prospectingPlanNode as any)
+    .addNode("prospecting_execute", prospectingExecuteNode as any)
     .addNode("visionary", visionNode as any)
+    .addNode("closer", closerNode as any)
 
     // Define Edges
-    .addEdge("__start__", "research_search")
-    .addEdge("research_search", "research_analyze")
+    .addEdge("__start__", "research_plan")
+    .addEdge("research_plan", "research_execute")
+    .addEdge("research_execute", "research_analyze")
 
     // Conditional Logic: Only prospect if the niche is "validated" AND approved by human
     .addConditionalEdges(
@@ -82,9 +90,11 @@ const workflow = new StateGraph<AgentState>({
         }
     )
 
-    .addEdge("human_approval", "prospecting")
-    .addEdge("prospecting", "visionary")
-    .addEdge("visionary", "__end__");
+    .addEdge("human_approval", "prospecting_plan")
+    .addEdge("prospecting_plan", "prospecting_execute")
+    .addEdge("prospecting_execute", "visionary")
+    .addEdge("visionary", "closer")
+    .addEdge("closer", "__end__");
 
 import { MemorySaver } from "@langchain/langgraph";
 
