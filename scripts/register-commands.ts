@@ -26,8 +26,16 @@ async function registerCommands() {
     const commands = [
         {
             name: 'hunt',
-            description: 'Start the daily business development hunt (Strategist -> Visionary -> Outreach)',
-            type: 1 // CHAT_INPUT
+            description: 'Start the daily business development hunt',
+            type: 1, // CHAT_INPUT
+            options: [
+                {
+                    name: 'niche',
+                    description: 'Specific business niche to hunt (e.g. AI Video Editors)',
+                    type: 3, // STRING
+                    required: false
+                }
+            ]
         },
         {
             name: 'ping',

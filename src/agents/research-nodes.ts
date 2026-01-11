@@ -133,7 +133,8 @@ export async function analyzeAndScoreNicheNode(state: AgentState) {
            - Willingness to Pay (Are these critical, expensive problems?)
         3. Provide a brief "Verdict" on whether we should proceed.
         
-        Output valid JSON only:
+        Output valid JSON only. If search results are missing or limited, use your internal general knowledge of the logistics and SaaS industry to provide a best-effort analysis. DO NOT apologize or ask for more instructions.
+        
         {
             "painPoints": [{"problem": "string", "frequency": "high|medium|low", "pain_score": 1-10}],
             "scores": {"marketSize": 1-10, "competition": 1-10, "willingnessToPay": 1-10, "overall": 1-10},

@@ -29,8 +29,8 @@ export async function prospectingNode(state: AgentState) {
     const targetRole = await generateGeminiText(queryPrompt) || "Decision Maker";
 
     const queries = [
-        `site:linkedin.com/in/ "${targetRole.trim()}" "${state.niche}"`,
-        `site:twitter.com "${targetRole.trim()}" "${state.niche}"`
+        `site:linkedin.com/in/ "${targetRole.trim()}" "${state.niche.replace(/SaaS|Software|B2B/gi, '').trim()}"`,
+        `site:twitter.com "${targetRole.trim()}" "${state.niche.replace(/SaaS|Software|B2B/gi, '').trim()}"`
     ];
 
     console.log(`🔍 Looking for candidates: ${targetRole.trim()}`);
