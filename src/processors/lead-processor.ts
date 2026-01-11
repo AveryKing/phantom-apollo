@@ -1,13 +1,25 @@
-
 import { supabase } from '../tools/supabase';
 import { takeScreenshot } from '../tools/browser';
 import { getGeminiModel, generateGeminiText } from '../tools/vertex-ai';
 import { sendDiscordFollowup } from '../tools/discord';
+import { uploadScreenshot } from '../tools/gcp';
+import { Langfuse } from 'langfuse';
+import dotenv from 'dotenv';
+
+dotenv.config();
+
+// Langfuse automatically reads from env vars: LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_HOST
+const langfuse = new Langfuse();
 
 /**
  * Process a single lead: Visionary Analysis -> Outreach Drafting -> Save
  */
 export async function processSingleLead(leadId: string, discordToken?: string) {
+    const trace = langfuse.trace({
+        name: 'process-single-lead',
+        metadata: { leadId }
+    });
+
     console.log(`🚀 [LeadProcessor] Starting processing for lead: ${leadId}`);
 
     // 1. Fetch Lead & Niche Context
@@ -19,6 +31,7 @@ export async function processSingleLead(leadId: string, discordToken?: string) {
 
     if (leadError || !lead) {
         console.error(`❌ [LeadProcessor] Lead not found: ${leadId}`, leadError);
+        trace.update({ output: { error: leadError, message: 'Lead not found' } });
         return;
     }
 
@@ -32,29 +45,32 @@ export async function processSingleLead(leadId: string, discordToken?: string) {
             visual_analysis: "Screenshot capture failed.",
             pain_points: [] as string[]
         };
+        let screenshotUrl = "";
+
+        // Fetch Vision Prompt from Langfuse
+        const visionPromptTemplate = await langfuse.getPrompt('visionary-analysis-rubric-v1');
 
         if (lead.linkedin_url && (lead.linkedin_url.includes('http') || lead.company)) {
-            // If we have a website (stored in company or url fields usually, but let's check company field too if it looks like a URL)
             const targetUrl = lead.url || (lead.company?.includes('.') ? `https://${lead.company}` : null);
 
             if (targetUrl) {
+                const visionSpan = trace.span({ name: 'visionary-analysis', input: { url: targetUrl } });
                 try {
                     const base64Image = await takeScreenshot(targetUrl);
-                    const visionModel = getGeminiModel(false);
 
-                    const visionPrompt = `
-                        Analyze this landing page for lead: ${lead.name} at ${lead.company}.
-                        1. Modernity Score (1-10).
-                        2. Vibe: (Enterprise, Startup, or Local).
-                        3. Key Value Prop.
-                        
-                        Output JSON:
-                        {
-                            "visual_vibe_score": number,
-                            "visual_analysis": "string",
-                            "pain_points": ["string"]
-                        }
-                    `;
+                    // Upload to GCS
+                    try {
+                        screenshotUrl = await uploadScreenshot(base64Image, `${leadId}-${Date.now()}.jpg`);
+                        console.log(`🖼️ [LeadProcessor] Screenshot uploaded: ${screenshotUrl}`);
+                    } catch (gcsError) {
+                        console.error("⚠️ GCS Upload failed:", gcsError);
+                    }
+
+                    const visionModel = getGeminiModel(false);
+                    const visionPrompt = visionPromptTemplate.compile({
+                        name: lead.name,
+                        company: lead.company
+                    });
 
                     const visionResult = await visionModel.generateContent({
                         contents: [{
@@ -70,37 +86,37 @@ export async function processSingleLead(leadId: string, discordToken?: string) {
                     const cleanJson = visionText.replace(/```json/g, '').replace(/```/g, '').trim();
                     visualAnalysisResult = JSON.parse(cleanJson);
 
+                    visionSpan.end({ output: visualAnalysisResult });
                     console.log(`🎨 [Visionary] Analyzed ${targetUrl}. Score: ${visualAnalysisResult.visual_vibe_score}`);
                 } catch (e) {
-                    console.warn(`⚠️ [Visionary] Skipped vision for ${lead.company_name}: ${e instanceof Error ? e.message : 'Unknown error'}`);
+                    console.warn(`⚠️ [Visionary] Skipped vision for ${lead.company}: ${e instanceof Error ? e.message : 'Unknown error'}`);
+                    visionSpan.end({ output: { error: e instanceof Error ? e.message : 'Unknown error' } });
                 }
             }
         }
 
         // --- STEP 2: CLOSER (Message Drafting) ---
-        const draftingPrompt = `
-            Draft a personalized outreach message for:
-            Name: ${lead.name}
-            Company: ${lead.company}
-            Role: ${lead.role}
-            Niche: ${nicheName}
-            Niche Context: ${nicheNotes}
-            Visual Context: ${visualAnalysisResult.visual_analysis}
-            
-            Tone: Professional, brief, non-salesy.
-            Goal: Identify if they struggle with ${visualAnalysisResult.pain_points?.[0] || 'efficiency'}.
-            
-            Output JSON: { "subject": "...", "content": "..." }
-        `;
+        const draftingSpan = trace.span({ name: 'outreach-drafting', input: { niche: nicheName, visual: visualAnalysisResult.visual_analysis } });
+
+        // Fetch Closer Prompt from Langfuse
+        const closerPromptTemplate = await langfuse.getPrompt('closer-outreach-draft-v1');
+        const draftingPrompt = closerPromptTemplate.compile({
+            niche: nicheName,
+            name: lead.name,
+            company: lead.company,
+            visual_analysis: visualAnalysisResult.visual_analysis
+        });
 
         const draftText = await generateGeminiText(draftingPrompt);
         const cleanDraftJson = draftText.replace(/```json/g, '').replace(/```/g, '').trim();
         const draft = JSON.parse(cleanDraftJson);
+        draftingSpan.end({ output: draft });
 
         // --- STEP 3: PERSIST RESULTS ---
         await supabase.from('leads').update({
             visual_vibe_score: visualAnalysisResult.visual_vibe_score,
             visual_analysis: visualAnalysisResult.visual_analysis,
+            screenshot_url: screenshotUrl,
             context: {
                 ...lead.context,
                 visual_pain_points: visualAnalysisResult.pain_points,
@@ -123,17 +139,27 @@ export async function processSingleLead(leadId: string, discordToken?: string) {
             const summary = `✨ **Lead Ready:** ${lead.name} (${lead.company})
 **Visual Score:** ${visualAnalysisResult.visual_vibe_score}/10
 **Draft Preview:** "${draft.subject}"
-*Analysis complete. View in dashboard or check emails table.*`;
+${screenshotUrl ? `🖼️ **Evidence:** [View Screenshot](${screenshotUrl})` : ''}
+*Analysis complete. View in Langfuse for full trace.*`;
 
             await sendDiscordFollowup(discordToken, summary);
         }
 
         console.log(`✅ [LeadProcessor] Successfully processed lead: ${leadId}`);
+        trace.update({ output: { success: true } });
 
     } catch (error) {
         console.error(`❌ [LeadProcessor] Processing failed for lead ${leadId}:`, error);
+        trace.update({ output: { error: error instanceof Error ? error.message : 'Unknown fatal error' } });
         if (discordToken) {
             await sendDiscordFollowup(discordToken, `⚠️ **Processing Error:** Lead [${lead.name}] failed during vision/drafting.`);
+        }
+    } finally {
+        try {
+            await langfuse.flushAsync();
+        } catch (flushError) {
+            console.error('⚠️ [Langfuse] Failed to flush traces:', flushError);
+            // Don't throw - we don't want Langfuse errors to break the flow
         }
     }
 }
