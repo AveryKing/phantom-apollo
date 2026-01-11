@@ -31,7 +31,7 @@ gcp-key.json
 # Deprecated / Cleanup
 src/trigger/
 trigger.config.ts
-public/
+# public/
 list_models.js
 test_search.js
 knowledge.json
