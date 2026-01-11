@@ -1,0 +1,26 @@
+{
+    "displayName": "Phantom Apollo - High Error Rate",
+    "documentation": {
+        "content": "Cloud Run service phantom-apollo has error rate > 5%",
+        "mimeType": "text/markdown"
+    },
+    "conditions": [
+        {
+            "displayName": "Error rate > 5%",
+            "conditionThreshold": {
+                "filter": "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"phantom-apollo\" AND metric.type=\"run.googleapis.com/request_count\" AND metric.labels.response_code_class=\"5xx\"",
+                "aggregations": [
+                    {
+                        "alignmentPeriod": "300s",
+                        "perSeriesAligner": "ALIGN_RATE"
+                    }
+                ],
+                "comparison": "COMPARISON_GT",
+                "thresholdValue": 0.05,
+                "duration": "300s"
+            }
+        }
+    ],
+    "combiner": "OR",
+    "enabled": true
+}

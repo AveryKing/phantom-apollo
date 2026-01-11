@@ -29,4 +29,4 @@ EXPOSE 8080
 
 # Command to run the LangGraph server
 # We use the shell form to allow environment variable expansion
-CMD npx @langchain/langgraph-cli dev --host 0.0.0.0 --port ${PORT:-8080}
+CMD ["npm", "start"]

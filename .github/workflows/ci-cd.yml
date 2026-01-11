@@ -145,13 +145,20 @@ jobs:
           service: 'phantom-apollo-api'
           region: '${{ env.REGION }}'
           image: '${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/phantom-apollo-api:${{ github.sha }}'
-          flags: '--allow-unauthenticated'
+          flags: '--allow-unauthenticated --memory=2Gi'
           env_vars: |
             NODE_ENV=production
             SUPABASE_URL=${{ secrets.SUPABASE_URL }}
             SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
             GOOGLE_CLOUD_PROJECT=${{ env.PROJECT_ID }}
             GOOGLE_LOCATION=${{ env.REGION }}
+            DISCORD_PUBLIC_KEY=${{ secrets.DISCORD_PUBLIC_KEY }}
+            GOOGLE_SEARCH_API_KEY=${{ secrets.GOOGLE_SEARCH_API_KEY }}
+            GOOGLE_CX=${{ secrets.GOOGLE_CX }}
+            SERVICE_URL=${{ secrets.SERVICE_URL }}
+            LANGFUSE_PUBLIC_KEY=${{ secrets.LANGFUSE_PUBLIC_KEY }}
+            LANGFUSE_SECRET_KEY=${{ secrets.LANGFUSE_SECRET_KEY }}
+            LANGFUSE_HOST=${{ secrets.LANGFUSE_HOST }}
 
   deploy-ui:
     name: Deploy Frontend

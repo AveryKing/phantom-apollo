@@ -167,19 +167,15 @@ phantom-apollo/
 
 ---
 
-## 🚀 Deployment
+The system auto-deploys to Cloud Run on push to `main` via [.github/workflows/ci-cd.yml](.github/workflows/ci-cd.yml):
 
-The system auto-deploys to Cloud Run on push to `main`:
+1. **Test Job**: Runs the full suite (unit, integration, audit)
+2. **Build Job**: Builds Docker images with advanced layer caching
+3. **Deploy Job**: Deploys to Cloud Run after tests pass
 
+**Trigger Deployment:**
 ```bash
-# Trigger deployment
 git push origin main
-
-# Or manually deploy
-gcloud run deploy phantom-apollo \
-  --source . \
-  --region us-central1 \
-  --allow-unauthenticated
 ```
 
 **Production URL:** `https://phantom-apollo-[hash].a.run.app`
@@ -189,17 +185,16 @@ gcloud run deploy phantom-apollo \
 ## 🧪 Testing
 
 ```bash
-# Run system audit
-npx tsx scripts/system-audit.ts
-
-# Run unit tests
+# Run all tests (Fast + Medium tiers)
 npm test
 
-# Test CLI chat
-npx tsx scripts/test-cli-chat.ts "Your message"
+# Run specific tiers
+npm run test:unit        # Pure logic, no side effects
+npm run test:integration # Agent nodes, mock APIs
+npm run test:coverage    # Generate coverage report
 
-# Check thread state
-npx tsx scripts/check-thread.ts <thread_id>
+# Run system audit
+npx tsx scripts/system-audit.ts
 ```
 
 ---

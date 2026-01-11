@@ -43,8 +43,11 @@ function extractHuntCommand(messages: BaseMessage[]): { isHunt: boolean; niche?:
   // Regex Patterns
   const patterns = [
     /^(?:start\s+)?(?:prospecting\s+)?hunt\s+for\s+(.+)/i,
+    /^(?:launch\s+|start\s+|find\s+|research\s+).*(?:lead\s+hunt|hunt|prospecting)\s+for\s+(.+)/i,
     /^prospect\s+for\s+(.+)/i,
-    /^hunt\s+(.+)/i
+    /^hunt\s+(.+)/i,
+    /^launch\s+(.+)/i,
+    /^find\s+(.+)/i
   ];
 
   for (const p of patterns) {

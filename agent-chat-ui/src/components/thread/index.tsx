@@ -111,7 +111,10 @@ function OpenGitHubRepo() {
   );
 }
 
+import { useIsMounted } from "@/hooks/use-is-mounted";
+
 export function Thread() {
+  const isMounted = useIsMounted();
   const [artifactContext, setArtifactContext] = useArtifactContext();
   const [artifactOpen, closeArtifact] = useArtifactOpen();
 
@@ -235,6 +238,8 @@ export function Thread() {
   const hasNoAIOrToolMessages = !messages.find(
     (m) => m.type === "ai" || m.type === "tool",
   );
+
+  if (!isMounted) return null;
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-background">

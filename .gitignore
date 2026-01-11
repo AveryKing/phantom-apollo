@@ -46,3 +46,9 @@ run_output.json
 thread_id.txt
 logs/
 .vscode/
+
+# Next.js build output
+.next/
+**/.next/
+build/
+dist/

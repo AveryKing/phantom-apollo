@@ -9,7 +9,7 @@
     "test": "vitest",
     "test:unit": "vitest run tests/unit",
     "test:integration": "vitest run tests/integration",
-    "test:e2e": "vitest run tests/e2e --no-coverage",
+    "test:e2e": "vitest run --config vitest.e2e.config.ts --no-coverage",
     "test:coverage": "vitest run --coverage",
     "test:ci": "vitest run --coverage --reporter=verbose",
     "local:hunt": "ts-node scripts/test-beast-mode.ts",

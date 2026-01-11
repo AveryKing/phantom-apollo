@@ -97,8 +97,24 @@ export async function processSingleLead(leadId: string, discordToken?: string) {
         });
 
         const draftText = await generateGeminiText(draftingPrompt);
-        const cleanDraftJson = draftText.replace(/```json/g, '').replace(/```/g, '').trim();
-        const draft = JSON.parse(cleanDraftJson);
+        let draft;
+        try {
+            const cleanDraftJson = draftText.replace(/```json/g, '').replace(/```/g, '').trim();
+            const firstBrace = cleanDraftJson.indexOf('{');
+            const lastBrace = cleanDraftJson.lastIndexOf('}');
+            if (firstBrace !== -1 && lastBrace !== -1) {
+                draft = JSON.parse(cleanDraftJson.substring(firstBrace, lastBrace + 1));
+            } else {
+                throw new Error("No JSON object found in response");
+            }
+        } catch (e) {
+            console.warn(`⚠️ [Closer] JSON Parse Failed: ${e instanceof Error ? e.message : 'Unknown'}. content: ${draftText.substring(0, 50)}...`);
+            draft = {
+                subject: `Outreach for ${lead.company}`,
+                content: draftText // Fallback to raw text
+            };
+        }
+
         draftingSpan.end({ output: draft });
 
         // --- STEP 3: PERSIST RESULTS ---

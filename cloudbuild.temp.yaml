@@ -1,0 +1,5 @@
+steps:
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['build', '-f', 'Dockerfile.api', '-t', 'us-central1-docker.pkg.dev/gen-lang-client-0175387292/phantom-apollo/phantom-apollo-api:manual-fix', '.']
+images:
+- 'us-central1-docker.pkg.dev/gen-lang-client-0175387292/phantom-apollo/phantom-apollo-api:manual-fix'
