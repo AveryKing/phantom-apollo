@@ -49,10 +49,19 @@ const workflow = new StateGraph<AgentState>({
 // Compile the graph
 export const graph = workflow.compile();
 
+import { Langfuse } from "langfuse";
+
+const langfuse = new Langfuse();
+
 /**
  * Beast Mode Runner
  */
 export async function runBeastMode(niche: string, discordToken?: string) {
+    const trace = langfuse.trace({
+        name: 'beast-mode-discovery',
+        metadata: { niche }
+    });
+
     console.log(`🚀 [BEAST MODE] Starting Discovery Pipeline for: ${niche}`);
 
     const initialState: AgentState = {
@@ -72,7 +81,17 @@ export async function runBeastMode(niche: string, discordToken?: string) {
         await sendDiscordFollowup(discordToken, `🚀 **Starting Hunt:** ${niche}\n\n*Initializing Discovery Agents...*`);
     }
 
-    const finalState = await graph.invoke(initialState as any) as unknown as AgentState;
+    let finalState: AgentState;
+    try {
+        finalState = await graph.invoke(initialState as any) as unknown as AgentState;
+        trace.update({ output: { status: finalState.status, leadsFound: finalState.leads?.length || 0 } });
+    } catch (error) {
+        console.error(`❌ [BEAST MODE] Pipeline failed:`, error);
+        trace.update({ output: { error: error instanceof Error ? error.message : 'Unknown pipeline error' } });
+        throw error;
+    } finally {
+        await langfuse.flushAsync();
+    }
 
     console.log(`🏁 [BEAST MODE] Discovery Pipeline finished for: ${niche}`);
     console.log(`📊 Status: ${finalState.status}`);
