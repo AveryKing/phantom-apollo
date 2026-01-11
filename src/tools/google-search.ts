@@ -64,3 +64,12 @@ export async function googleSearch(query: string, numResults: number = 10): Prom
         throw error;
     }
 }
+/**
+ * Simple wrapper that returns search results as a formatted string.
+ * Used for legacy support during migration.
+ */
+export async function webSearch(query: string): Promise<string> {
+    const results = await googleSearch(query);
+    if (results.length === 0) return "No results found.";
+    return results.map(r => `Title: ${r.title}\nURL: ${r.link}\nSnippet: ${r.snippet}`).join("\n\n");
+}

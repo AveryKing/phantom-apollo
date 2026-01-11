@@ -16,6 +16,26 @@ const serviceUrl = process.env.SERVICE_URL; // Public URL of the Cloud Run servi
  * This allows for rate-limited, async processing of vision/outreach steps.
  */
 export async function dispatchLeadTask(leadId: string, discordToken?: string) {
+    if (process.env.SIMULATE_TASKS === 'true') {
+        console.log(`🧪 [CloudTasks-MOCK] Simulating task for lead ${leadId}...`);
+        // We run this detached to simulate async behavior
+        (async () => {
+            await new Promise(r => setTimeout(r, 1000));
+            try {
+                const localUrl = `http://localhost:${process.env.PORT || 8080}/process-lead`;
+                console.log(`🧪 [CloudTasks-MOCK] Calling processor at ${localUrl}`);
+                await fetch(localUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ leadId, discordToken })
+                });
+            } catch (e) {
+                console.error(`❌ [CloudTasks-MOCK] Simulation failed:`, e);
+            }
+        })();
+        return { name: `mock-task-${leadId}` };
+    }
+
     if (!projectId || !serviceUrl) {
         console.warn('⚠️ Cloud Tasks dispatch skipped: GOOGLE_CLOUD_PROJECT or SERVICE_URL missing.');
         return;

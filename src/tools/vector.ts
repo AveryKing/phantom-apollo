@@ -12,21 +12,8 @@ export async function findSimilarNiche(nicheName: string, threshold: number = 0.
 
     // Call Supabase RPC function 'match_niches' or use raw SQL via RPC if enabled, 
     // but standard practice is to use rpc for vector search.
-    // However, since we defined the table raw in the plan, we might not have the RPC function set up yet.
-    // Let's assume we can use the JS client's filtering if we had an RPC, but without it we might need to rely on 
-    // a customized RPC function. 
-    // The Master Plan says: "SELECT * FROM niches ORDER BY embedding <-> new_vector LIMIT 1"
-
-    // To execute raw SQL with parameters in Supabase-js is not directly supported without RPC.
-    // We SHOULD create an RPC function. 
-    // BUT, for now, I'll assume we have an RPC function `match_niches` or I'll try to use the `gt` / `lt` filters if supported?
-    // Actually, pgvector support in supabase-js usually requires an RPC call.
-
-    // Let's define the logic correctly: we need to call an RPC function.
-    // Since I can't run SQL DDL from here easily (I'm an agent), I will check if I can just assume the RPC exists 
-    // OR if I should just use `text-embedding-004` to dedup locally? No, that defeats the purpose.
-
-    // I will add a TODO to "Create match_niches RPC" but for now I will try to write the code that WOULD call it.
+    // Verify similarity using match_niches RPC (PostgreSQL + pgvector).
+    // The RPC returns similarity (1 - distance).
 
     const { data, error } = await supabase.rpc('match_niches', {
         query_embedding: embedding,

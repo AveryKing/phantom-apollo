@@ -23,14 +23,15 @@ export const vertexAI = projectId ? new VertexAI({
 /**
  * Get Gemini model with optional grounding support
  * @param enableGrounding - Enable Google Search grounding to reduce hallucinations
+ * @param options - Additional generation config options
  */
-export function getGeminiModel(enableGrounding: boolean = false) {
+export function getGeminiModel(enableGrounding: boolean = false, options: any = {}) {
     if (!vertexAI) {
         throw new Error('Vertex AI not initialized. Set GOOGLE_CLOUD_PROJECT in .env');
     }
 
     const modelConfig: any = {
-        model: 'gemini-2.0-flash-exp', // Reverted to experimental but now with robust retries
+        model: 'gemini-2.0-flash-001', // Standard 2.0 Flash model
         safetySettings: [
             {
                 category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
@@ -38,15 +39,17 @@ export function getGeminiModel(enableGrounding: boolean = false) {
             }
         ],
         generationConfig: {
-            temperature: 0.7,
-            maxOutputTokens: 2048
+            temperature: options.temperature ?? 0.7,
+            maxOutputTokens: options.maxOutputTokens ?? 8192,
+            responseMimeType: options.responseMimeType,
+            responseSchema: options.responseSchema
         }
     };
 
     // Add grounding if requested
     if (enableGrounding) {
         modelConfig.tools = [{
-            google_search: {}
+            googleSearch: {} // Fixed: Use googleSearch instead of googleSearchRetrieval
         }];
     }
 
@@ -57,15 +60,42 @@ export function getGeminiModel(enableGrounding: boolean = false) {
  * Robust wrapper for generating text with Gemini, including 429 retries
  */
 export async function generateGeminiText(promptOrContent: any, enableGrounding: boolean = false): Promise<string> {
+    console.log(`🤖 [Gemini] Calling Text Generation (Grounding: ${enableGrounding})...`);
     const model = getGeminiModel(enableGrounding);
+    return retryOnRateLimit(() => model.generateContent(promptOrContent).then(res => res.response.candidates?.[0]?.content?.parts?.[0]?.text || ""));
+}
 
+/**
+ * Robust wrapper for generating structured JSON with Gemini
+ */
+export async function generateGeminiStructured<T>(promptOrContent: any, schema: any, enableGrounding: boolean = false): Promise<T> {
+    console.log(`🤖 [Gemini] Calling Structured Generation (Grounding: ${enableGrounding})...`);
+    const model = getGeminiModel(enableGrounding, {
+        responseMimeType: 'application/json',
+        responseSchema: schema
+    });
+
+    const result = await retryOnRateLimit(() => model.generateContent(promptOrContent));
+    const text = result.response.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
+
+    try {
+        return JSON.parse(text) as T;
+    } catch (e) {
+        console.error("❌ Failed to parse Gemini structured output:", text);
+        throw e;
+    }
+}
+
+/**
+ * Generic retry logic for rate limits
+ */
+export async function retryOnRateLimit<T>(fn: () => Promise<T>): Promise<T> {
     let attempts = 0;
     const maxAttempts = 5;
 
     while (attempts < maxAttempts) {
         try {
-            const result = await model.generateContent(promptOrContent);
-            return result.response.candidates?.[0]?.content?.parts?.[0]?.text || "";
+            return await fn();
         } catch (error: any) {
             attempts++;
             const isRateLimit = error.message?.includes('429') || error.code === 429 || error.status === 429;
