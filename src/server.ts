@@ -79,6 +79,35 @@ app.post('/hunt', bodyParser.json(), async (req, res) => {
     }
 });
 
+import { Command } from "@langchain/langgraph";
+import { graph } from './graph';
+
+// ... (existing imports)
+
+// --- 4. Resume Hunt Endpoint (Approval) ---
+app.post('/resume-hunt', bodyParser.json(), async (req, res) => {
+    const { thread_id, action } = req.body;
+
+    if (!thread_id || action !== 'approve') {
+        return res.status(400).send({ error: "Invalid request. Action must be 'approve' and thread_id is required." });
+    }
+
+    console.log(`🔄 Resuming hunt for thread ${thread_id}...`);
+    // Respond quickly
+    res.status(202).send({ status: "Resuming pipeline..." });
+
+    try {
+        // Resume the graph by providing the value expected by the interrupt
+        await graph.invoke(
+            new Command({ resume: true }),
+            { configurable: { thread_id } }
+        );
+        console.log(`✅ Thread ${thread_id} resumed successfully.`);
+    } catch (e) {
+        console.error(`❌ Failed to resume thread ${thread_id}:`, e);
+    }
+});
+
 // Health Check
 app.get('/', (req, res) => {
     res.send('Phantom Apollo is Online (Task-Ready) 👻');

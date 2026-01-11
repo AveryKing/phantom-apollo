@@ -96,10 +96,19 @@ const workflow = new StateGraph<AgentState>({
     .addEdge("visionary", "closer")
     .addEdge("closer", "__end__");
 
-import { MemorySaver } from "@langchain/langgraph";
+import { PostgresSaver } from "@langchain/langgraph-checkpoint-postgres";
+import { Pool } from "pg";
 
-// Compile the graph with a checkpointer to support interrupts
-const checkpointer = new MemorySaver();
+// Compile the graph with a persistent checkpointer
+const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false } // Required for Supabase in many environments
+});
+const checkpointer = new PostgresSaver(pool);
+
+// Ensure tables exist (safe to run repeatedly)
+checkpointer.setup().catch(err => console.error("Error setting up checkpointer:", err));
+
 export const graph = workflow.compile({ checkpointer });
 
 import { RunnableConfig } from "@langchain/core/runnables";
@@ -111,6 +120,9 @@ import { withLangfuseTracing, flushLangfuse } from "./lib/tracing";
 export async function runBeastMode(niche: string, discordToken?: string, config?: RunnableConfig) {
     console.log(`🚀 [BEAST MODE] Starting Discovery Pipeline for: ${niche}`);
 
+    // Generate a consistent thread_id if not provided
+    const thread_id = config?.configurable?.thread_id || `beast-${Date.now()}`;
+
     // Add Langfuse tracing and thread_id to the config
     const tracedConfig = {
         ...withLangfuseTracing(config, "beast-mode-discovery", {
@@ -118,7 +130,7 @@ export async function runBeastMode(niche: string, discordToken?: string, config?
             discord_enabled: !!discordToken,
         }),
         configurable: {
-            thread_id: config?.configurable?.thread_id || `beast-${Date.now()}`,
+            thread_id,
             ...config?.configurable
         }
     };
@@ -137,14 +149,17 @@ export async function runBeastMode(niche: string, discordToken?: string, config?
 
     if (discordToken) {
         const { sendDiscordFollowup } = require("./tools/discord");
-        await sendDiscordFollowup(discordToken, `🚀 **Starting Hunt:** ${niche}\n\n*Initializing Discovery Agents...*`);
+        await sendDiscordFollowup(discordToken, `🚀 **Starting Hunt:** ${niche}\n🆔 Thread: \`${thread_id}\`\n\n*Initializing Discovery Agents...*`);
     }
 
     let finalState: AgentState;
     try {
         finalState = await graph.invoke(initialState as any, tracedConfig) as unknown as AgentState;
     } catch (error) {
-        console.error(`❌ [BEAST MODE] Pipeline failed:`, error);
+        // Check if it's an interrupt (LangGraph throws on interrupt in some versions, or returns incomplete state in others)
+        // In newer versions, invoke just returns. 
+        // If it pauses, we typically inspect the state.
+        console.error(`❌ [BEAST MODE] Pipeline stopped/failed:`, error);
         throw error;
     } finally {
         await flushLangfuse();
