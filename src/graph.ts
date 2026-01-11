@@ -50,7 +50,11 @@ const workflow = new StateGraph<AgentState>({
 export const graph = workflow.compile();
 
 import { Langfuse } from "langfuse";
+import dotenv from 'dotenv';
 
+dotenv.config();
+
+// Langfuse automatically reads from env vars: LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_HOST
 const langfuse = new Langfuse();
 
 /**
@@ -90,7 +94,12 @@ export async function runBeastMode(niche: string, discordToken?: string) {
         trace.update({ output: { error: error instanceof Error ? error.message : 'Unknown pipeline error' } });
         throw error;
     } finally {
-        await langfuse.flushAsync();
+        try {
+            await langfuse.flushAsync();
+        } catch (flushError) {
+            console.error('⚠️ [Langfuse] Failed to flush traces:', flushError);
+            // Don't throw - we don't want Langfuse errors to break the flow
+        }
     }
 
     console.log(`🏁 [BEAST MODE] Discovery Pipeline finished for: ${niche}`);
