@@ -14,6 +14,14 @@ const app = express();
 const PORT = process.env.PORT || 8080;
 const LANGGRAPH_PORT = 8123;
 
+// Enable CORS for all routes
+import cors from 'cors';
+app.use(cors({
+    origin: '*', // Allow all origins (or restrict to process.env.UI_URL)
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key']
+}));
+
 // --- 0. Start LangGraph Server & Proxy ---
 // Spawn the LangGraph CLI dev server
 const langgraphProcess = spawn('npx', ['@langchain/langgraph-cli', 'dev', '--port', LANGGRAPH_PORT.toString(), '--no-browser'], {
