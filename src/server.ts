@@ -5,11 +5,37 @@ import { verifyKeyMiddleware } from 'discord-interactions';
 import dotenv from 'dotenv';
 import { runBeastMode } from './graph';
 import { processSingleLead } from './processors/lead-processor';
+import { createProxyMiddleware } from 'http-proxy-middleware';
+import { spawn } from 'child_process';
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 8080;
+const LANGGRAPH_PORT = 8123;
+
+// --- 0. Start LangGraph Server & Proxy ---
+// Spawn the LangGraph CLI dev server
+const langgraphProcess = spawn('npx', ['@langchain/langgraph-cli', 'dev', '--port', LANGGRAPH_PORT.toString(), '--no-browser'], {
+    stdio: 'inherit',
+    env: { ...process.env, PORT: LANGGRAPH_PORT.toString() },
+    shell: true
+});
+
+// kill child process on exit
+process.on('exit', () => {
+    langgraphProcess.kill();
+});
+
+// Proxy LangGraph API routes
+const proxy = createProxyMiddleware({
+    target: `http://localhost:${LANGGRAPH_PORT}`,
+    changeOrigin: true,
+    ws: true,
+    logLevel: 'silent' // Reduce noise
+});
+
+app.use(['/threads', '/assistants', '/runs', '/stream'], proxy);
 
 // --- 1. Discord Interactions Endpoint ---
 // Use raw body parser for signature verification - verifyKeyMiddleware needs raw body
