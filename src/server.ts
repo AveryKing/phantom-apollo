@@ -32,7 +32,6 @@ const proxy = createProxyMiddleware({
     target: `http://localhost:${LANGGRAPH_PORT}`,
     changeOrigin: true,
     ws: true,
-    logLevel: 'silent' // Reduce noise
 });
 
 app.use(['/threads', '/assistants', '/runs', '/stream'], proxy);
