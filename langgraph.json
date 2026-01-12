@@ -1,6 +1,5 @@
 {
   "graphs": {
     "agent": "./src/assistant.ts:graph"
-  },
-  "env": ".env"
+  }
 }
